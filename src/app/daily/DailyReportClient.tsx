@@ -1,55 +1,29 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import Navbar from '@/components/Navbar'
-import type { JwtPayload, WorkItem, DailyReport, LegendItem, EMOTION_OPTIONS } from '@/types'
-import { EMOTION_OPTIONS as EMOTIONS, ACHIEVEMENT_TYPES } from '@/types'
+import type { JwtPayload, DailyReport } from '@/types'
+import { EMOTION_OPTIONS, autoFillFromFeeling } from '@/types'
 
-interface Props {
-  session: JwtPayload
-}
+interface Props { session: JwtPayload }
 
-const emptyWork = (): WorkItem => ({ category: 'customer_support', content: '' })
+const emptyForm = (name: string): DailyReport => ({
+  date: new Date().toISOString().split('T')[0],
+  authorName: name,
+  emotion: '',
+  memorableEvent: '',
+  hardThing: '',
+  dailyFeeling: '',
+})
 
 export default function DailyReportClient({ session }: Props) {
-  const router = useRouter()
-  const today = new Date().toISOString().split('T')[0]
-
-  const [date, setDate] = useState(today)
-  const [emotion, setEmotion] = useState('')
-  const [memorableEvent, setMemorableEvent] = useState('')
-  const [hardThing, setHardThing] = useState('')
-  const [dailyFeeling, setDailyFeeling] = useState('')
-
-  // 업무 항목
-  const [projectItems, setProjectItems] = useState<Array<{ projectName: string; content: string }>>([{ projectName: '', content: '' }])
-  const [achievementItems, setAchievementItems] = useState<Array<{ achievementType: string; content: string }>>([{ achievementType: ACHIEVEMENT_TYPES[0], content: '' }])
-  const [customerItems, setCustomerItems] = useState<Array<{ customerName: string; supportType: string; content: string }>>([{ customerName: '', supportType: '', content: '' }])
-  const [plannedItems, setPlannedItems] = useState<string[]>([''])
-  const [deqLong, setDeqLong] = useState<string>('')
-  const [deqUrgent, setDeqUrgent] = useState<string>('')
-  const [opinion, setOpinion] = useState('')
-
-  const [legends, setLegends] = useState<LegendItem[]>([])
+  const [form, setForm] = useState<DailyReport>(emptyForm(session.name))
+  const [editingId, setEditingId] = useState<string | null>(null)  // null = 새 작성
+  const [recentReports, setRecentReports] = useState<DailyReport[]>([])
   const [saving, setSaving] = useState(false)
-  const [generating, setGenerating] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
-  // 최근 일일보고 목록
-  const [recentReports, setRecentReports] = useState<DailyReport[]>([])
-
-  useEffect(() => {
-    fetchLegends()
-    fetchRecentReports()
-  }, [])
-
-  const fetchLegends = async () => {
-    try {
-      const res = await fetch('/api/settings/legends')
-      if (res.ok) setLegends(await res.json())
-    } catch {}
-  }
+  useEffect(() => { fetchRecentReports() }, [])
 
   const fetchRecentReports = async () => {
     try {
@@ -58,97 +32,91 @@ export default function DailyReportClient({ session }: Props) {
     } catch {}
   }
 
-  const buildWorkItems = (): WorkItem[] => {
-    const items: WorkItem[] = []
-    for (const p of projectItems) {
-      if (p.projectName || p.content) items.push({ category: 'project', projectName: p.projectName, content: p.content })
+  const handleAutoFill = () => {
+    if (!form.dailyFeeling.trim()) {
+      setMessage({ type: 'error', text: '먼저 하루 느낀점을 입력해주세요.' })
+      return
     }
-    for (const a of achievementItems) {
-      if (a.content) items.push({ category: 'achievement', achievementType: a.achievementType, content: a.content })
-    }
-    for (const c of customerItems) {
-      if (c.customerName || c.content) items.push({ category: 'customer_support', customerName: c.customerName, supportType: c.supportType, content: c.content })
-    }
-    for (const p of plannedItems) {
-      if (p) items.push({ category: 'planned', content: p })
-    }
-    if (deqLong || deqUrgent) {
-      items.push({ category: 'deq', content: `long:${deqLong || 0},urgent:${deqUrgent || 0}` })
-    }
-    if (opinion) items.push({ category: 'opinion', content: opinion })
-    return items
+    const filled = autoFillFromFeeling(form.dailyFeeling)
+    setForm(f => ({ ...f, ...filled }))
+    setMessage({ type: 'success', text: '자동 채우기 완료! 내용을 확인하고 수정해주세요.' })
   }
 
   const handleSave = async () => {
-    if (!emotion) { setMessage({ type: 'error', text: '감정을 선택해주세요.' }); return }
+    if (!form.dailyFeeling.trim()) {
+      setMessage({ type: 'error', text: '하루 느낀점을 입력해주세요.' }); return
+    }
+    if (!form.emotion) {
+      setMessage({ type: 'error', text: '감정을 선택해주세요.' }); return
+    }
 
-    setSaving(true)
-    setMessage(null)
+    setSaving(true); setMessage(null)
     try {
-      const report: DailyReport = {
-        date, authorName: session.name, emotion,
-        memorableEvent, hardThing, dailyFeeling,
-        workItems: buildWorkItems(),
-        deqStatus: (deqLong || deqUrgent) ? { longPending: Number(deqLong) || 0, urgent: Number(deqUrgent) || 0 } : undefined,
+      let res
+      if (editingId) {
+        // 수정
+        res = await fetch(`/api/daily/${editingId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(form),
+        })
+      } else {
+        // 신규 저장
+        res = await fetch('/api/daily', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(form),
+        })
       }
-      const res = await fetch('/api/daily', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(report),
-      })
+
       if (res.ok) {
-        setMessage({ type: 'success', text: '일일보고가 저장되었습니다.' })
-        fetchRecentReports()
+        setMessage({ type: 'success', text: editingId ? '수정되었습니다.' : '저장되었습니다.' })
+        setEditingId(null)
+        setForm(emptyForm(session.name))
+        await fetchRecentReports()
       } else {
         const data = await res.json()
         setMessage({ type: 'error', text: data.error || '저장에 실패했습니다.' })
       }
     } catch {
       setMessage({ type: 'error', text: '저장 중 오류가 발생했습니다.' })
-    } finally {
-      setSaving(false)
-    }
+    } finally { setSaving(false) }
   }
 
-  const handleGenerateWeekly = async () => {
-    setGenerating(true)
+  const handleEdit = (report: DailyReport) => {
+    setForm({ ...report })
+    setEditingId(report.id!)
     setMessage(null)
-    try {
-      const res = await fetch('/api/weekly/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date }),
-      })
-      const data = await res.json()
-      if (res.ok) {
-        if (data.message) {
-          setMessage({ type: 'success', text: data.message })
-        } else {
-          setMessage({ type: 'success', text: `✓ 주간보고 생성 완료! "${data.title}" (${data.newDates?.join(', ')} 반영)` })
-        }
-      } else {
-        setMessage({ type: 'error', text: data.error || '주간보고 생성에 실패했습니다.' })
-      }
-    } catch {
-      setMessage({ type: 'error', text: '주간보고 생성 중 오류가 발생했습니다.' })
-    } finally {
-      setGenerating(false)
-    }
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const handleCancelEdit = () => {
+    setEditingId(null)
+    setForm(emptyForm(session.name))
+    setMessage(null)
   }
 
   return (
     <div className="min-h-screen bg-notion-sidebar">
       <Navbar userName={session.name} role={session.role} />
 
-      <div className="max-w-4xl mx-auto px-4 py-8">
+      <div className="max-w-2xl mx-auto px-4 py-8">
+        {/* 헤더 */}
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-xl font-semibold text-notion-text">일일보고 작성</h1>
+          <div>
+            <h1 className="text-xl font-semibold text-notion-text">
+              {editingId ? '일일보고 수정' : '일일보고 작성'}
+            </h1>
+            {editingId && (
+              <p className="text-xs text-notion-gray mt-0.5">{form.date} 보고서 수정 중</p>
+            )}
+          </div>
           <div className="flex gap-2">
+            {editingId && (
+              <button onClick={handleCancelEdit} className="btn-secondary">취소</button>
+            )}
             <button onClick={handleSave} disabled={saving} className="btn-primary">
-              {saving ? '저장 중...' : '저장'}
-            </button>
-            <button onClick={handleGenerateWeekly} disabled={generating} className="bg-green-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50">
-              {generating ? '생성 중...' : '📊 주간보고 생성'}
+              {saving ? '저장 중...' : editingId ? '수정 완료' : '저장'}
             </button>
           </div>
         </div>
@@ -160,13 +128,18 @@ export default function DailyReportClient({ session }: Props) {
         )}
 
         <div className="space-y-4">
-          {/* 기본 정보 */}
+          {/* 날짜 / 작성자 */}
           <div className="card">
-            <h2 className="text-sm font-semibold text-notion-text mb-3">기본 정보</h2>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs text-notion-gray mb-1">날짜</label>
-                <input type="date" value={date} onChange={e => setDate(e.target.value)} className="input-field" />
+                <input
+                  type="date"
+                  value={form.date}
+                  onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
+                  disabled={!!editingId}
+                  className={`input-field ${editingId ? 'bg-notion-gray-bg cursor-not-allowed' : ''}`}
+                />
               </div>
               <div>
                 <label className="block text-xs text-notion-gray mb-1">작성자</label>
@@ -175,18 +148,44 @@ export default function DailyReportClient({ session }: Props) {
             </div>
           </div>
 
+          {/* 하루 느낀점 - 메인 입력 */}
+          <div className="card">
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-semibold text-notion-text">
+                하루 느낀점 <span className="text-red-400">*</span>
+              </label>
+              <button
+                type="button"
+                onClick={handleAutoFill}
+                className="text-xs bg-notion-blue text-white px-2.5 py-1 rounded-md hover:bg-blue-600 transition-colors"
+              >
+                ✨ 자동 채우기
+              </button>
+            </div>
+            <textarea
+              value={form.dailyFeeling}
+              onChange={e => setForm(f => ({ ...f, dailyFeeling: e.target.value }))}
+              rows={4}
+              className="input-field resize-none"
+              placeholder="오늘 하루를 자유롭게 작성해주세요. 작성 후 '자동 채우기'를 누르면 감정과 기억에 남는 일, 힘들었던 점이 자동으로 채워집니다."
+            />
+          </div>
+
           {/* 감정 */}
           <div className="card">
-            <h2 className="text-sm font-semibold text-notion-text mb-3">감정</h2>
+            <label className="block text-sm font-semibold text-notion-text mb-3">
+              감정 <span className="text-red-400">*</span>
+              <span className="text-xs font-normal text-notion-gray ml-2">(자동 채우기로 추천되며 직접 선택 가능)</span>
+            </label>
             <div className="flex flex-wrap gap-2">
-              {EMOTIONS.map(e => (
+              {EMOTION_OPTIONS.map(e => (
                 <button
                   key={e.emoji}
                   type="button"
-                  onClick={() => setEmotion(e.emoji)}
+                  onClick={() => setForm(f => ({ ...f, emotion: e.emoji }))}
                   className={`flex items-center gap-1.5 px-3 py-2 rounded-md border text-sm transition-all ${
-                    emotion === e.emoji
-                      ? 'border-notion-blue bg-notion-blue-bg text-notion-blue'
+                    form.emotion === e.emoji
+                      ? 'border-notion-blue bg-notion-blue-bg text-notion-blue font-medium'
                       : 'border-notion-border hover:border-gray-300'
                   }`}
                 >
@@ -197,146 +196,65 @@ export default function DailyReportClient({ session }: Props) {
             </div>
           </div>
 
-          {/* 개인 회고 */}
+          {/* 기억에 남는 일 / 힘들었던 점 */}
           <div className="card space-y-3">
-            <h2 className="text-sm font-semibold text-notion-text">개인 회고</h2>
+            <p className="text-xs text-notion-gray">아래 내용은 자동 채우기로 생성되며 직접 수정할 수 있습니다.</p>
             <div>
-              <label className="block text-xs text-notion-gray mb-1">기억에 남는 일</label>
-              <textarea value={memorableEvent} onChange={e => setMemorableEvent(e.target.value)} rows={2} className="input-field resize-none" placeholder="오늘 기억에 남는 일을 작성하세요" />
+              <label className="block text-xs font-medium text-notion-text mb-1">기억에 남는 일</label>
+              <textarea
+                value={form.memorableEvent}
+                onChange={e => setForm(f => ({ ...f, memorableEvent: e.target.value }))}
+                rows={2}
+                className="input-field resize-none"
+                placeholder="오늘 기억에 남는 일 (자동 채우기 또는 직접 입력)"
+              />
             </div>
             <div>
-              <label className="block text-xs text-notion-gray mb-1">힘들었던 점</label>
-              <textarea value={hardThing} onChange={e => setHardThing(e.target.value)} rows={2} className="input-field resize-none" placeholder="힘들었던 점을 작성하세요" />
+              <label className="block text-xs font-medium text-notion-text mb-1">힘들었던 점</label>
+              <textarea
+                value={form.hardThing}
+                onChange={e => setForm(f => ({ ...f, hardThing: e.target.value }))}
+                rows={2}
+                className="input-field resize-none"
+                placeholder="힘들었던 점 (자동 채우기 또는 직접 입력)"
+              />
             </div>
-            <div>
-              <label className="block text-xs text-notion-gray mb-1">하루 느낀점</label>
-              <textarea value={dailyFeeling} onChange={e => setDailyFeeling(e.target.value)} rows={2} className="input-field resize-none" placeholder="하루를 마치며 느낀점을 작성하세요" />
-            </div>
-          </div>
-
-          {/* 업무 진행 상황 */}
-          <div className="card">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-notion-text">1. 주요 업무 진행 상황</h2>
-              <button type="button" onClick={() => setProjectItems(p => [...p, { projectName: '', content: '' }])} className="text-xs text-notion-blue hover:underline">+ 추가</button>
-            </div>
-            <div className="space-y-2">
-              {projectItems.map((item, i) => (
-                <div key={i} className="flex gap-2 items-start">
-                  <input value={item.projectName} onChange={e => setProjectItems(p => p.map((x, j) => j === i ? { ...x, projectName: e.target.value } : x))} placeholder="프로젝트/업무명" className="input-field w-40 flex-shrink-0" />
-                  <input value={item.content} onChange={e => setProjectItems(p => p.map((x, j) => j === i ? { ...x, content: e.target.value } : x))} placeholder="세부 내용" className="input-field flex-1" />
-                  {projectItems.length > 1 && (
-                    <button type="button" onClick={() => setProjectItems(p => p.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 text-lg leading-none mt-1.5">×</button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* 주요 성과 */}
-          <div className="card">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-notion-text">2. 주요 성과</h2>
-              <button type="button" onClick={() => setAchievementItems(p => [...p, { achievementType: ACHIEVEMENT_TYPES[0], content: '' }])} className="text-xs text-notion-blue hover:underline">+ 추가</button>
-            </div>
-            <div className="space-y-2">
-              {achievementItems.map((item, i) => (
-                <div key={i} className="flex gap-2 items-center">
-                  <select value={item.achievementType} onChange={e => setAchievementItems(p => p.map((x, j) => j === i ? { ...x, achievementType: e.target.value } : x))} className="input-field w-36 flex-shrink-0">
-                    {ACHIEVEMENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                  <input value={item.content} onChange={e => setAchievementItems(p => p.map((x, j) => j === i ? { ...x, content: e.target.value } : x))} placeholder="내용" className="input-field flex-1" />
-                  {achievementItems.length > 1 && (
-                    <button type="button" onClick={() => setAchievementItems(p => p.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 text-lg leading-none">×</button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* 고객사 지원 내역 */}
-          <div className="card">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-notion-text">3. 고객사 지원 주요 내역</h2>
-              <button type="button" onClick={() => setCustomerItems(p => [...p, { customerName: '', supportType: '', content: '' }])} className="text-xs text-notion-blue hover:underline">+ 추가</button>
-            </div>
-            <div className="space-y-2">
-              {customerItems.map((item, i) => (
-                <div key={i} className="flex gap-2 items-start">
-                  <input value={item.customerName} onChange={e => setCustomerItems(p => p.map((x, j) => j === i ? { ...x, customerName: e.target.value } : x))} placeholder="고객사명" className="input-field w-32 flex-shrink-0" />
-                  <select value={item.supportType} onChange={e => setCustomerItems(p => p.map((x, j) => j === i ? { ...x, supportType: e.target.value } : x))} className="input-field w-32 flex-shrink-0">
-                    <option value="">지원 종류 선택</option>
-                    {legends.map(l => <option key={l.id} value={l.label}>{l.label}</option>)}
-                  </select>
-                  <input value={item.content} onChange={e => setCustomerItems(p => p.map((x, j) => j === i ? { ...x, content: e.target.value } : x))} placeholder="지원 내용" className="input-field flex-1" />
-                  {customerItems.length > 1 && (
-                    <button type="button" onClick={() => setCustomerItems(p => p.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 text-lg leading-none mt-1.5">×</button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* 예정된 작업 */}
-          <div className="card">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-notion-text">4. 예정된 작업</h2>
-              <button type="button" onClick={() => setPlannedItems(p => [...p, ''])} className="text-xs text-notion-blue hover:underline">+ 추가</button>
-            </div>
-            <div className="space-y-2">
-              {plannedItems.map((item, i) => (
-                <div key={i} className="flex gap-2">
-                  <input value={item} onChange={e => setPlannedItems(p => p.map((x, j) => j === i ? e.target.value : x))} placeholder="예정된 작업 내용" className="input-field flex-1" />
-                  {plannedItems.length > 1 && (
-                    <button type="button" onClick={() => setPlannedItems(p => p.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 text-lg leading-none mt-1.5">×</button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* DEQ 진행 상황 */}
-          <div className="card">
-            <h2 className="text-sm font-semibold text-notion-text mb-3">5. DEQ 진행 상황</h2>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs text-notion-gray mb-1">장기 미해결 일감 (건)</label>
-                <input type="number" min="0" value={deqLong} onChange={e => setDeqLong(e.target.value)} placeholder="0" className="input-field" />
-              </div>
-              <div>
-                <label className="block text-xs text-notion-gray mb-1">우선순위 긴급 (+DSR) 일감 (건)</label>
-                <input type="number" min="0" value={deqUrgent} onChange={e => setDeqUrgent(e.target.value)} placeholder="0" className="input-field" />
-              </div>
-            </div>
-          </div>
-
-          {/* 팀에 대한 의견 */}
-          <div className="card">
-            <h2 className="text-sm font-semibold text-notion-text mb-3">6. 팀에 대한 의견</h2>
-            <textarea value={opinion} onChange={e => setOpinion(e.target.value)} rows={3} className="input-field resize-none" placeholder="팀이나 본부에 대한 건의 사항이 있을 경우 작성하세요" />
           </div>
         </div>
 
         {/* 최근 일일보고 목록 */}
-        {recentReports.length > 0 && (
-          <div className="mt-8">
-            <h2 className="text-sm font-semibold text-notion-text mb-3">최근 일일보고</h2>
+        <div className="mt-10">
+          <h2 className="text-sm font-semibold text-notion-text mb-3">최근 일일보고</h2>
+          {recentReports.length === 0 ? (
+            <p className="text-sm text-notion-gray">작성된 일일보고가 없습니다.</p>
+          ) : (
             <div className="space-y-2">
-              {recentReports.slice(0, 5).map(r => (
-                <div key={r.id} className="card flex items-center justify-between py-3">
+              {recentReports.slice(0, 10).map(r => (
+                <div
+                  key={r.id}
+                  className={`card flex items-center justify-between py-3 ${editingId === r.id ? 'border-notion-blue bg-notion-blue-bg' : ''}`}
+                >
                   <div className="flex items-center gap-3">
-                    <span className="text-lg">{r.emotion}</span>
+                    <span className="text-xl">{r.emotion || '📝'}</span>
                     <div>
                       <p className="text-sm font-medium text-notion-text">{r.date}</p>
-                      <p className="text-xs text-notion-gray line-clamp-1">{r.memorableEvent || '(내용 없음)'}</p>
+                      <p className="text-xs text-notion-gray line-clamp-1 max-w-xs">
+                        {r.dailyFeeling || '(내용 없음)'}
+                      </p>
                     </div>
                   </div>
-                  <span className="text-xs text-notion-gray">{r.workItems.length}개 업무</span>
+                  <button
+                    onClick={() => handleEdit(r)}
+                    disabled={!!editingId && editingId !== r.id}
+                    className="text-xs text-notion-blue hover:underline disabled:opacity-40"
+                  >
+                    {editingId === r.id ? '수정 중...' : '수정'}
+                  </button>
                 </div>
               ))}
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   )

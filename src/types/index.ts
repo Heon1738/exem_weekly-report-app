@@ -2,8 +2,8 @@
 export interface Member {
   id: string
   name: string
-  position: string        // 직책 (예: 과장)
-  department: string      // 소속 (예: DB기술본부 > DB기술연구2팀)
+  position: string
+  department: string
   role: 'leader' | 'member'
   pinHash: string
 }
@@ -11,7 +11,7 @@ export interface Member {
 // 고객사 지원 범례 항목
 export interface LegendItem {
   id: string
-  label: string           // 예: MFO 지원, DB 점검, 장애 대응
+  label: string
 }
 
 // 앱 설정
@@ -19,74 +19,50 @@ export interface AppSettings {
   dailyDbId: string
   membersDbId: string
   legendsDbId: string
-  teamName: string        // 예: DB기술연구2팀
-  divisionName: string    // 예: DB기술본부
+  teamName: string
+  divisionName: string
 }
 
-// 일일보고 업무 항목 (주간보고 매핑용)
-export interface WorkItem {
-  category: 'project' | 'achievement' | 'customer_support' | 'planned' | 'deq' | 'opinion'
-  customerName?: string   // 고객사 지원 시
-  supportType?: string    // 지원 종류 (범례)
-  projectName?: string    // 프로젝트/업무명
-  achievementType?: string // 성과 구분: 컨설팅, PreSales, PoC, 장애분석, 기술문서
+// 일일보고 (간소화 - 개인 회고만)
+export interface DailyReport {
+  id?: string
+  date: string
+  authorName: string
+  emotion: string
+  memorableEvent: string   // 기억에 남는 일 (자동 채우기)
+  hardThing: string        // 힘들었던 점 (자동 채우기)
+  dailyFeeling: string     // 하루 느낀점 (주 입력)
+}
+
+// 주간보고 섹션 타입
+export interface Section1Item {
+  projectName: string
   content: string
 }
 
-// DEQ 현황
-export interface DeqStatus {
-  longPending: number     // 장기 미해결 일감
-  urgent: number          // 우선순위 긴급 일감
+export interface Section2Item {
+  achievementType: string
+  content: string
 }
 
-// 일일보고
-export interface DailyReport {
-  id?: string
-  date: string            // YYYY-MM-DD
-  authorName: string
-  emotion: string         // 이모지
-  memorableEvent: string  // 기억에 남는 일
-  hardThing: string       // 힘들었던 점
-  dailyFeeling: string    // 하루 느낀점
-  workItems: WorkItem[]   // 업무 항목들
-  deqStatus?: DeqStatus
-  opinion?: string        // 팀에 대한 의견
-}
-
-// 주간보고 섹션
-export interface WeeklySection1Item {
-  projectName: string
-  items: string[]
-}
-
-export interface WeeklySection2Item {
-  type: string            // 컨설팅, PreSales, PoC, 장애분석, 기술문서
-  items: string[]
-}
-
-export interface WeeklySection3Customer {
+export interface Section3Item {
   customerName: string
-  authorName: string
-  supportItems: {
-    supportType: string
-    items: string[]
-  }[]
+  supportType: string
+  content: string
 }
 
-export interface WeeklyReport {
-  id?: string
-  title: string           // 예: 5월 2주차 주간 보고
-  weekStart: string       // YYYY-MM-DD (월요일)
-  weekEnd: string         // YYYY-MM-DD (금요일)
+// 주간보고 초안 (웹에서 직접 작성)
+export interface WeeklyDraft {
+  weekStart: string
+  weekEnd: string
   authorName: string
-  createdDate: string
-  mappedDates: string[]   // 이미 매핑된 날짜 목록
-  section1: WeeklySection1Item[]
-  section2: WeeklySection2Item[]
-  section3: WeeklySection3Customer[]
+  section1: Section1Item[]
+  section2: Section2Item[]
+  section3: Section3Item[]
   section4: string[]
-  section5?: DeqStatus
-  section6: string
+  section5: { longPending: number; urgent: number }
+  section6: string         // 팀에 대한 의견 (일일보고 하루 느낀점에서 자동 집계 + 수정 가능)
+  mappedDates: string[]
 }
 
 // JWT payload
@@ -110,5 +86,39 @@ export const EMOTION_OPTIONS = [
   { emoji: '🔥', label: '열정' },
 ]
 
-// 성과 구분 목록
 export const ACHIEVEMENT_TYPES = ['컨설팅', 'PreSales', 'PoC', '장애분석', '기술문서 공유']
+
+// 하루 느낀점 → 감정/기억/힘듦 자동 추출
+export function autoFillFromFeeling(feeling: string): {
+  emotion: string
+  memorableEvent: string
+  hardThing: string
+} {
+  if (!feeling.trim()) return { emotion: '😐', memorableEvent: '', hardThing: '' }
+
+  const sentences = feeling
+    .split(/[.!?。\n]+/)
+    .map(s => s.trim())
+    .filter(s => s.length > 4)
+
+  const hardKeywords = ['어렵', '힘들', '문제', '이슈', '고민', '아쉬', '실수', '지연', '막혔', '해결 못', '어려웠', '고생', '난감', '막막']
+  const positiveKeywords = ['좋았', '즐거', '뿌듯', '성공', '완료', '해냈', '기뻤', '재밌', '잘 됐', '잘됐', '기쁘']
+  const tiredKeywords = ['피곤', '지쳤', '힘든 하루', '녹초', '지치']
+  const thinkKeywords = ['고민', '생각', '복잡', '어떻게']
+
+  const hardSentences = sentences.filter(s => hardKeywords.some(k => s.includes(k)))
+  const goodSentences = sentences.filter(s => !hardKeywords.some(k => s.includes(k)))
+
+  let emotion = '😐'
+  if (positiveKeywords.some(k => feeling.includes(k))) emotion = '💪'
+  else if (tiredKeywords.some(k => feeling.includes(k))) emotion = '😴'
+  else if (thinkKeywords.some(k => feeling.includes(k))) emotion = '🤔'
+  else if (hardKeywords.some(k => feeling.includes(k))) emotion = '😔'
+  else if (feeling.length > 30) emotion = '😊'
+
+  return {
+    emotion,
+    memorableEvent: goodSentences.slice(0, 2).join('. ') || feeling.slice(0, 80),
+    hardThing: hardSentences.join('. '),
+  }
+}

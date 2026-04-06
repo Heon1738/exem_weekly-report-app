@@ -14,8 +14,6 @@ export async function GET(request: NextRequest) {
   const weekStart = searchParams.get('weekStart') || undefined
   const weekEnd = searchParams.get('weekEnd') || undefined
   const targetName = searchParams.get('name')
-
-  // 팀원은 본인 것만 조회 가능
   const authorName = session.role === 'leader' && targetName ? targetName : session.name
 
   const reports = await getDailyReports(settings.dailyDbId, authorName, weekStart, weekEnd)
@@ -30,7 +28,7 @@ export async function POST(request: NextRequest) {
   if (!settings) return NextResponse.json({ error: '설정 없음' }, { status: 500 })
 
   const body = await request.json() as DailyReport
-  body.authorName = session.name  // 본인 이름 강제 적용
+  body.authorName = session.name
 
   const id = await createDailyReport(settings.dailyDbId, body)
   return NextResponse.json({ success: true, id })
