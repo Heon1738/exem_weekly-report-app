@@ -114,6 +114,40 @@ export async function getAppSettings(): Promise<AppSettings | null> {
   }
 }
 
+export async function updateAppSettings(updates: Partial<Pick<AppSettings, 'teamName' | 'divisionName'>>): Promise<void> {
+  try {
+    const blocks = await notion.blocks.children.list({ block_id: PARENT_PAGE_ID, page_size: 50 })
+    for (const block of blocks.results) {
+      if (block.object !== 'block') continue
+      if ('type' in block && block.type === 'child_page') {
+        const page = block as { type: 'child_page'; child_page: { title: string }; id: string }
+        if (page.child_page.title === '앱 설정 (수정하지 마세요)') {
+          const children = await notion.blocks.children.list({ block_id: page.id })
+          for (const child of children.results) {
+            if (child.object !== 'block') continue
+            if ('type' in child && child.type === 'code') {
+              const codeBlock = child as { type: 'code'; code: { rich_text: Array<{ plain_text: string }> }; id: string }
+              const json = codeBlock.code.rich_text.map(t => t.plain_text).join('')
+              const current = JSON.parse(json) as AppSettings
+              const updated = { ...current, ...updates }
+              await notion.blocks.update({
+                block_id: codeBlock.id,
+                code: {
+                  rich_text: [{ type: 'text', text: { content: JSON.stringify(updated, null, 2) } }],
+                  language: 'json',
+                },
+              } as any)
+              return
+            }
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error('updateAppSettings error:', e)
+  }
+}
+
 // ─────────────────────────────────────────────
 // 팀원 관리
 // ─────────────────────────────────────────────

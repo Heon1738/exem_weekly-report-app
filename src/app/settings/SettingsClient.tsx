@@ -33,6 +33,10 @@ export default function SettingsClient({ session }: Props) {
 
   // 설정
   const [settings, setSettings] = useState<Record<string, string>>({})
+  const [teamName, setTeamName] = useState('')
+  const [divisionName, setDivisionName] = useState('')
+  const [orgSaving, setOrgSaving] = useState(false)
+  const [orgMsg, setOrgMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   useEffect(() => {
     fetchMembers()
@@ -52,7 +56,35 @@ export default function SettingsClient({ session }: Props) {
 
   const fetchSettings = async () => {
     const res = await fetch('/api/settings')
-    if (res.ok) setSettings(await res.json())
+    if (res.ok) {
+      const data = await res.json()
+      setSettings(data)
+      setTeamName(data.teamName || '')
+      setDivisionName(data.divisionName || '')
+    }
+  }
+
+  const handleSaveOrgNames = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setOrgSaving(true)
+    setOrgMsg(null)
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teamName, divisionName }),
+      })
+      if (res.ok) {
+        setOrgMsg({ type: 'success', text: '저장되었습니다.' })
+        await fetchSettings()
+      } else {
+        setOrgMsg({ type: 'error', text: '저장에 실패했습니다.' })
+      }
+    } catch {
+      setOrgMsg({ type: 'error', text: '오류가 발생했습니다.' })
+    } finally {
+      setOrgSaving(false)
+    }
   }
 
   const handleAddMember = async (e: React.FormEvent) => {
@@ -269,12 +301,44 @@ export default function SettingsClient({ session }: Props) {
         {/* Notion 연동 */}
         {activeTab === 'notion' && (
           <div className="space-y-4">
+            {/* 팀/본부 이름 수정 */}
             <div className="card">
-              <h2 className="text-sm font-semibold text-notion-text mb-3">Notion 연동 정보</h2>
+              <h2 className="text-sm font-semibold text-notion-text mb-3">조직 이름 설정</h2>
+              <form onSubmit={handleSaveOrgNames} className="space-y-3">
+                <div>
+                  <label className="block text-xs text-notion-gray mb-1">팀 이름</label>
+                  <input
+                    type="text"
+                    value={teamName}
+                    onChange={e => setTeamName(e.target.value)}
+                    className="input-field"
+                    placeholder="예: 통합기술연구3팀"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-notion-gray mb-1">본부 이름</label>
+                  <input
+                    type="text"
+                    value={divisionName}
+                    onChange={e => setDivisionName(e.target.value)}
+                    className="input-field"
+                    placeholder="예: 통합기술본부"
+                  />
+                </div>
+                {orgMsg && (
+                  <p className={`text-sm ${orgMsg.type === 'success' ? 'text-green-600' : 'text-red-500'}`}>{orgMsg.text}</p>
+                )}
+                <button type="submit" disabled={orgSaving} className="btn-primary">
+                  {orgSaving ? '저장 중...' : '저장'}
+                </button>
+              </form>
+            </div>
+
+            {/* DB 정보 (읽기 전용) */}
+            <div className="card">
+              <h2 className="text-sm font-semibold text-notion-text mb-3">Notion DB 정보</h2>
               <div className="space-y-3">
                 {[
-                  { label: '팀 이름', key: 'teamName' },
-                  { label: '본부 이름', key: 'divisionName' },
                   { label: '일일보고 DB ID', key: 'dailyDbId' },
                   { label: '팀원 설정 DB ID', key: 'membersDbId' },
                   { label: '범례 설정 DB ID', key: 'legendsDbId' },
