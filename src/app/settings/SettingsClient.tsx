@@ -205,7 +205,7 @@ export default function SettingsClient({ session }: Props) {
                 </div>
                 <div>
                   <label className="block text-xs text-notion-gray mb-1">소속</label>
-                  <input value={newMember.department} onChange={e => setNewMember(p => ({ ...p, department: e.target.value }))} className="input-field" placeholder="DB기술본부 > DB기술연구2팀" />
+                  <input value={newMember.department} onChange={e => setNewMember(p => ({ ...p, department: e.target.value }))} className="input-field" placeholder="통합기술본부 > 통합기술연구3팀" />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>

@@ -58,12 +58,26 @@ export default function WeeklyReportClient({ session }: Props) {
   const [generating, setGenerating] = useState(false)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [teamName, setTeamName] = useState('통합기술연구3팀')
+  const [divisionName, setDivisionName] = useState('통합기술본부')
 
   const { weekStart, weekEnd } = getWeekDates(selectedDate)
 
   useEffect(() => {
     if (session.role === 'leader') fetchMembers()
+    fetchSettings()
   }, [session.role])
+
+  const fetchSettings = async () => {
+    try {
+      const res = await fetch('/api/settings')
+      if (res.ok) {
+        const data = await res.json()
+        if (data.teamName) setTeamName(data.teamName)
+        if (data.divisionName) setDivisionName(data.divisionName)
+      }
+    } catch {}
+  }
 
   useEffect(() => {
     fetchWeeklySummary()
@@ -247,14 +261,14 @@ export default function WeeklyReportClient({ session }: Props) {
             <details open className="mb-6">
               <summary className="text-2xl font-bold text-notion-text cursor-pointer hover:bg-notion-gray-bg rounded px-1 py-0.5 -mx-1 list-none flex items-center gap-2">
                 <span className="text-sm text-notion-gray">▶</span>
-                DB기술본부 &gt; DB기술연구2팀 &gt; {selectedMember}
+                {divisionName} &gt; {teamName} &gt; {selectedMember}
               </summary>
 
               <div className="mt-4 space-y-6 pl-4">
                 {/* Section 1 */}
                 <div>
                   <h2 className="text-lg font-semibold text-notion-text border-b border-notion-border pb-2 mb-3">
-                    1. DB기술연구2팀 주요 업무 진행 상황
+                    1. {teamName} 주요 업무 진행 상황
                   </h2>
                   {Object.keys(section1Reports).length === 0 ? (
                     <p className="text-sm text-notion-gray ml-4">• 없음</p>

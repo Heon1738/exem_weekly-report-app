@@ -69,8 +69,8 @@ export async function initializeAppDatabases(): Promise<AppSettings> {
     dailyDbId: dailyDb.id,
     membersDbId: membersDb.id,
     legendsDbId: legendsDb.id,
-    teamName: 'DB기술연구2팀',
-    divisionName: 'DB기술본부',
+    teamName: '통합기술연구3팀',
+    divisionName: '통합기술본부',
   }
 
   await notion.pages.create({

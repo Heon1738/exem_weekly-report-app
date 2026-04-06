@@ -10,7 +10,7 @@ export async function POST() {
     await createMember(settings.membersDbId, {
       name: '김종헌',
       position: '과장',
-      department: 'DB기술본부 > DB기술연구2팀',
+      department: '통합기술본부 > 통합기술연구3팀',
       role: 'leader',
       pinHash: hashPin('1234'),
     })
