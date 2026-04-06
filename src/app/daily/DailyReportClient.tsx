@@ -37,11 +37,17 @@ export default function DailyReportClient({ session }: Props) {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [autoFilling, setAutoFilling] = useState(false)
   const [weeklyGenerating, setWeeklyGenerating] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
-  // 이번 주 일일보고 수 (버튼 표시용)
   const today = new Date().toISOString().split('T')[0]
   const { weekStart, weekEnd } = getWeekRange(today)
-  const thisWeekCount = recentReports.filter(r => r.date >= weekStart && r.date <= weekEnd).length
+
+  // 가장 최근 일일보고가 있는 주를 자동생성 대상으로 사용
+  const latestReport = recentReports.length > 0 ? recentReports[0] : null
+  const targetDate = latestReport ? latestReport.date : today
+  const { weekStart: targetWeekStart, weekEnd: targetWeekEnd } = getWeekRange(targetDate)
+  const targetWeekCount = recentReports.filter(r => r.date >= targetWeekStart && r.date <= targetWeekEnd).length
+  const isCurrentWeek = targetWeekStart === weekStart
 
   useEffect(() => { fetchRecentReports() }, [])
 
@@ -81,8 +87,8 @@ export default function DailyReportClient({ session }: Props) {
   }
 
   const handleGenerateWeekly = async () => {
-    if (thisWeekCount === 0) {
-      setMessage({ type: 'error', text: '이번 주 작성된 일일보고가 없습니다.' })
+    if (targetWeekCount === 0) {
+      setMessage({ type: 'error', text: '작성된 일일보고가 없습니다.' })
       return
     }
     setWeeklyGenerating(true)
@@ -91,7 +97,7 @@ export default function DailyReportClient({ session }: Props) {
       const res = await fetch('/api/weekly/autofill', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date: today }),
+        body: JSON.stringify({ date: targetDate }),
       })
       if (res.ok) {
         const data = await res.json()
@@ -105,6 +111,25 @@ export default function DailyReportClient({ session }: Props) {
       setMessage({ type: 'error', text: '주간보고 생성 중 오류가 발생했습니다.' })
     } finally {
       setWeeklyGenerating(false)
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('이 일일보고를 삭제하시겠습니까?')) return
+    setDeletingId(id)
+    try {
+      const res = await fetch(`/api/daily/${id}`, { method: 'DELETE' })
+      if (res.ok) {
+        setMessage({ type: 'success', text: '삭제되었습니다.' })
+        await fetchRecentReports()
+        if (editingId === id) handleCancelEdit()
+      } else {
+        setMessage({ type: 'error', text: '삭제에 실패했습니다.' })
+      }
+    } catch {
+      setMessage({ type: 'error', text: '삭제 중 오류가 발생했습니다.' })
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -301,16 +326,18 @@ export default function DailyReportClient({ session }: Props) {
         <div className="mt-8 p-4 rounded-lg border border-notion-border bg-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-notion-text">📊 이번 주 주간보고 자동생성</p>
+              <p className="text-sm font-medium text-notion-text">
+                📊 {isCurrentWeek ? '이번 주' : `지난 주 (${targetWeekStart} ~ ${targetWeekEnd})`} 주간보고 자동생성
+              </p>
               <p className="text-xs text-notion-gray mt-0.5">
-                {thisWeekCount > 0
-                  ? `이번 주 일일보고 ${thisWeekCount}건을 바탕으로 주간보고를 자동으로 작성합니다.`
-                  : '이번 주 일일보고를 먼저 작성해주세요.'}
+                {targetWeekCount > 0
+                  ? `일일보고 ${targetWeekCount}건을 바탕으로 주간보고를 자동으로 작성합니다. (기존 작성 내용 보존)`
+                  : '작성된 일일보고가 없습니다.'}
               </p>
             </div>
             <button
               onClick={handleGenerateWeekly}
-              disabled={weeklyGenerating || thisWeekCount === 0}
+              disabled={weeklyGenerating || targetWeekCount === 0}
               className="flex-shrink-0 ml-4 text-sm bg-notion-blue text-white px-3 py-2 rounded-md hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {weeklyGenerating ? 'AI 분석 중...' : '주간보고 생성'}
@@ -344,13 +371,22 @@ export default function DailyReportClient({ session }: Props) {
                       </p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => handleEdit(r)}
-                    disabled={!!editingId && editingId !== r.id}
-                    className="text-xs text-notion-blue hover:underline disabled:opacity-40"
-                  >
-                    {editingId === r.id ? '수정 중...' : '수정'}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleEdit(r)}
+                      disabled={!!editingId && editingId !== r.id}
+                      className="text-xs text-notion-blue hover:underline disabled:opacity-40"
+                    >
+                      {editingId === r.id ? '수정 중...' : '수정'}
+                    </button>
+                    <button
+                      onClick={() => handleDelete(r.id!)}
+                      disabled={deletingId === r.id || !!editingId}
+                      className="text-xs text-red-400 hover:text-red-600 disabled:opacity-40"
+                    >
+                      {deletingId === r.id ? '삭제 중...' : '삭제'}
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

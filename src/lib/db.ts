@@ -236,6 +236,10 @@ export async function createDailyReport(report: DailyReport): Promise<string> {
   return row.id
 }
 
+export async function deleteDailyReport(reportId: string): Promise<void> {
+  await sql`DELETE FROM daily_reports WHERE id=${reportId}`
+}
+
 export async function updateDailyReport(reportId: string, report: Partial<DailyReport>): Promise<void> {
   if (report.emotion !== undefined) await sql`UPDATE daily_reports SET emotion=${report.emotion}, updated_at=NOW() WHERE id=${reportId}`
   if (report.memorableEvent !== undefined) await sql`UPDATE daily_reports SET memorable_event=${report.memorableEvent}, updated_at=NOW() WHERE id=${reportId}`
@@ -268,6 +272,10 @@ export async function loadWeeklyDraft(weekStart: string, weekEnd: string, author
     if (!rows.length) return null
     return rows[0].draft_data as WeeklyDraft
   } catch { return null }
+}
+
+export async function deleteWeeklyDraft(weekStart: string, authorName: string): Promise<void> {
+  await sql`DELETE FROM weekly_drafts WHERE week_start=${weekStart}::date AND author_name=${authorName}`
 }
 
 export async function getWeeklyDraftsList(authorName: string): Promise<{ weekStart: string; weekEnd: string; updatedAt: string }[]> {

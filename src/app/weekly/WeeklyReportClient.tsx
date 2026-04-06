@@ -59,6 +59,7 @@ export default function WeeklyReportClient({ session }: Props) {
   const [notionUrl, setNotionUrl] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit')
   const [weeklyList, setWeeklyList] = useState<{ weekStart: string; weekEnd: string; updatedAt: string }[]>([])
+  const [deletingWeek, setDeletingWeek] = useState<string | null>(null)
 
   useEffect(() => {
     if (session.role === 'leader') fetchMembers()
@@ -188,6 +189,33 @@ export default function WeeklyReportClient({ session }: Props) {
 
   const handleSelectWeek = (ws: string) => {
     setSelectedDate(ws)
+  }
+
+  const handleDeleteWeek = async (ws: string) => {
+    if (!confirm(`${ws} 주간보고를 삭제하시겠습니까?`)) return
+    setDeletingWeek(ws)
+    try {
+      const body: Record<string, string> = { weekStart: ws }
+      if (session.role === 'leader' && selectedMember !== session.name) body.authorName = selectedMember
+      const res = await fetch('/api/weekly/list', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (res.ok) {
+        await fetchWeeklyList()
+        if (ws === weekStart) {
+          const today = new Date().toISOString().split('T')[0]
+          setSelectedDate(today)
+        }
+      } else {
+        setMessage({ type: 'error', text: '삭제에 실패했습니다.' })
+      }
+    } catch {
+      setMessage({ type: 'error', text: '삭제 중 오류가 발생했습니다.' })
+    } finally {
+      setDeletingWeek(null)
+    }
   }
 
   return (
@@ -384,23 +412,34 @@ export default function WeeklyReportClient({ session }: Props) {
               {weeklyList.map(item => {
                 const isActive = item.weekStart === weekStart
                 return (
-                  <button
+                  <div
                     key={item.weekStart}
-                    onClick={() => handleSelectWeek(item.weekStart)}
-                    className={`w-full text-left card flex items-center justify-between py-3 transition-colors ${
-                      isActive ? 'border-notion-blue bg-notion-blue-bg' : 'hover:border-gray-300'
+                    className={`card flex items-center justify-between py-3 transition-colors ${
+                      isActive ? 'border-notion-blue bg-notion-blue-bg' : ''
                     }`}
                   >
-                    <div>
+                    <button
+                      onClick={() => handleSelectWeek(item.weekStart)}
+                      className="flex-1 text-left"
+                    >
                       <p className={`text-sm font-medium ${isActive ? 'text-notion-blue' : 'text-notion-text'}`}>
                         {item.weekStart} ~ {item.weekEnd}
                       </p>
                       <p className="text-xs text-notion-gray mt-0.5">
                         {isActive ? '현재 보는 주' : `저장됨: ${item.updatedAt.slice(0, 10)}`}
                       </p>
+                    </button>
+                    <div className="flex items-center gap-2 ml-2">
+                      {isActive && <span className="text-xs text-notion-blue font-medium">선택됨</span>}
+                      <button
+                        onClick={() => handleDeleteWeek(item.weekStart)}
+                        disabled={deletingWeek === item.weekStart}
+                        className="text-xs text-red-400 hover:text-red-600 disabled:opacity-40"
+                      >
+                        {deletingWeek === item.weekStart ? '삭제 중...' : '삭제'}
+                      </button>
                     </div>
-                    {isActive && <span className="text-xs text-notion-blue font-medium">선택됨</span>}
-                  </button>
+                  </div>
                 )
               })}
             </div>

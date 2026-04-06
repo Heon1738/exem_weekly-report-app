@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSessionFromCookies } from '@/lib/auth'
-import { getAppSettings, getDailyReports, saveWeeklyDraft, getMembers } from '@/lib/db'
+import { getAppSettings, getDailyReports, saveWeeklyDraft, loadWeeklyDraft, getMembers } from '@/lib/db'
 import type { WeeklyDraft } from '@/types'
 
 function getWeekRange(dateStr: string) {
@@ -137,15 +137,18 @@ ${allFeelings}
     } catch {}
   }
 
+  // 기존 초안이 있으면 수동 작성 섹션(1,2,5,6)을 보존하고 AI 섹션(3,4)만 갱신
+  const existing = await loadWeeklyDraft(weekStart, weekEnd, session.name)
+
   const draft: WeeklyDraft = {
     weekStart, weekEnd,
     authorName: session.name,
-    section1: [{ projectName: '', content: '' }],
-    section2: [{ achievementType: '컨설팅', content: '' }],
+    section1: existing?.section1 ?? [{ projectName: '', content: '' }],
+    section2: existing?.section2 ?? [{ achievementType: '컨설팅', content: '' }],
     section3,
     section4,
-    section5: [{ description: '', link: '' }],
-    section6: '',
+    section5: existing?.section5 ?? [{ description: '', link: '' }],
+    section6: existing?.section6 ?? '',
     mappedDates: dailyReports.map(r => r.date),
   }
 

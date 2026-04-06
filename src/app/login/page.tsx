@@ -33,7 +33,7 @@ export default function LoginPage() {
   const checkStatus = async () => {
     setAppState('loading')
     try {
-      const res = await fetch('/api/auth/members')
+      const res = await fetch('/api/auth/members', { cache: 'no-store' })
       if (res.ok) {
         const data = await res.json()
         if (!data.initialized) setAppState('not_initialized')
