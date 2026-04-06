@@ -57,6 +57,8 @@ export default function WeeklyReportClient({ session }: Props) {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [notionUrl, setNotionUrl] = useState<string | null>(null)
+  const [bulkExporting, setBulkExporting] = useState(false)
+  const [bulkResults, setBulkResults] = useState<{ name: string; pageId: string; error?: string }[] | null>(null)
   const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit')
   const [weeklyList, setWeeklyList] = useState<{ weekStart: string; weekEnd: string; updatedAt: string }[]>([])
   const [deletingWeek, setDeletingWeek] = useState<string | null>(null)
@@ -155,6 +157,29 @@ export default function WeeklyReportClient({ session }: Props) {
     } finally { setExporting(false) }
   }
 
+  const handleBulkExport = async () => {
+    setBulkExporting(true)
+    setBulkResults(null)
+    setMessage(null)
+    try {
+      const res = await fetch('/api/weekly/generate-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ weekStart, weekEnd }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setBulkResults(data.results)
+      } else {
+        setMessage({ type: 'error', text: data.error || '전체 내보내기에 실패했습니다.' })
+      }
+    } catch {
+      setMessage({ type: 'error', text: '전체 내보내기 중 오류가 발생했습니다.' })
+    } finally {
+      setBulkExporting(false)
+    }
+  }
+
   const applyAutoSection6 = () => {
     setDraft(d => ({ ...d, section6: autoSection6 }))
   }
@@ -248,6 +273,11 @@ export default function WeeklyReportClient({ session }: Props) {
             <button onClick={handleSaveDraft} disabled={saving} className="btn-secondary text-sm">
               {saving ? '저장 중...' : '초안 저장'}
             </button>
+            {session.role === 'leader' && (
+              <button onClick={handleBulkExport} disabled={bulkExporting} className="bg-purple-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-purple-700 disabled:opacity-50">
+                {bulkExporting ? '처리 중...' : '📤 전체 내보내기'}
+              </button>
+            )}
             <button onClick={handleExport} disabled={exporting} className="bg-green-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-700 disabled:opacity-50">
               {exporting ? '처리 중...' : '📤 Notion 내보내기'}
             </button>
@@ -258,6 +288,28 @@ export default function WeeklyReportClient({ session }: Props) {
           <div className={`mb-4 p-3 rounded-md text-sm ${message.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
             {message.text}
             {notionUrl && <a href={notionUrl} target="_blank" rel="noopener noreferrer" className="ml-2 underline">Notion에서 열기 →</a>}
+          </div>
+        )}
+
+        {bulkResults && (
+          <div className="mb-4 p-3 rounded-md text-sm bg-purple-50 border border-purple-200">
+            <p className="font-medium text-purple-800 mb-2">전체 내보내기 결과</p>
+            <div className="space-y-1">
+              {bulkResults.map(r => (
+                <div key={r.name} className="flex items-center gap-2">
+                  {r.error ? (
+                    <span className="text-red-600">✗ {r.name}: {r.error}</span>
+                  ) : (
+                    <>
+                      <span className="text-green-700">✓ {r.name}</span>
+                      {r.pageId && (
+                        <a href={`https://www.notion.so/${r.pageId.replace(/-/g, '')}`} target="_blank" rel="noopener noreferrer" className="text-purple-600 underline text-xs">열기</a>
+                      )}
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

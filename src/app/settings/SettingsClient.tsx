@@ -12,24 +12,28 @@ interface MemberItem {
   role: 'leader' | 'member'
 }
 
-interface Props {
-  session: JwtPayload
-}
+interface Props { session: JwtPayload }
 
 export default function SettingsClient({ session }: Props) {
-  const [activeTab, setActiveTab] = useState<'members' | 'legends' | 'notion'>('members')
+  const isLeader = session.role === 'leader'
+  const [activeTab, setActiveTab] = useState<string>(isLeader ? 'members' : 'myinfo')
 
-  // 팀원
+  // 팀원 (leader only)
   const [members, setMembers] = useState<MemberItem[]>([])
   const [newMember, setNewMember] = useState({ name: '', position: '', department: '', role: 'member' as 'leader' | 'member' })
   const [memberLoading, setMemberLoading] = useState(false)
   const [memberMsg, setMemberMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
-  // 인라인 편집
+  // 인라인 편집 (leader)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState({ position: '', department: '', role: 'member' as 'leader' | 'member', pin: '' })
   const [editLoading, setEditLoading] = useState(false)
   const [editMsg, setEditMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
+  // 내 정보 편집 (member)
+  const [selfForm, setSelfForm] = useState({ position: '', department: '', pin: '' })
+  const [selfLoading, setSelfLoading] = useState(false)
+  const [selfMsg, setSelfMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   // 범례
   const [legends, setLegends] = useState<LegendItem[]>([])
@@ -37,19 +41,26 @@ export default function SettingsClient({ session }: Props) {
   const [legendLoading, setLegendLoading] = useState(false)
   const [legendMsg, setLegendMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
-  // 설정
-  const [settings, setSettings] = useState<Record<string, string>>({})
+  // 설정 (leader only)
   const [teamName, setTeamName] = useState('')
   const [divisionName, setDivisionName] = useState('')
-  const [notionExportDbId, setNotionExportDbId] = useState('')
+  const [notionParentPageId, setNotionParentPageId] = useState('')
   const [orgSaving, setOrgSaving] = useState(false)
   const [orgMsg, setOrgMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   useEffect(() => {
     fetchMembers()
     fetchLegends()
-    fetchSettings()
+    if (isLeader) fetchSettings()
   }, [])
+
+  // When members load, pre-fill selfForm for member
+  useEffect(() => {
+    if (!isLeader && members.length > 0) {
+      const me = members.find(m => m.name === session.name)
+      if (me) setSelfForm({ position: me.position, department: me.department, pin: '' })
+    }
+  }, [members])
 
   const fetchMembers = async () => {
     const res = await fetch('/api/settings/members')
@@ -65,59 +76,67 @@ export default function SettingsClient({ session }: Props) {
     const res = await fetch('/api/settings')
     if (res.ok) {
       const data = await res.json()
-      setSettings(data)
       setTeamName(data.teamName || '')
       setDivisionName(data.divisionName || '')
-      setNotionExportDbId(data.notionExportDbId || '')
+      setNotionParentPageId(data.notionParentPageId || '')
     }
   }
 
-  const handleSaveOrgNames = async (e: React.FormEvent) => {
+  // ── Member self-edit ──
+  const handleSaveSelf = async (e: React.FormEvent) => {
     e.preventDefault()
-    setOrgSaving(true)
-    setOrgMsg(null)
+    const me = members.find(m => m.name === session.name)
+    if (!me) { setSelfMsg({ type: 'error', text: '계정 정보를 찾을 수 없습니다.' }); return }
+    if (selfForm.pin && selfForm.pin.length < 4) { setSelfMsg({ type: 'error', text: '패스워드는 4자리 이상이어야 합니다.' }); return }
+    setSelfLoading(true); setSelfMsg(null)
     try {
-      const res = await fetch('/api/settings', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teamName, divisionName, notionExportDbId }),
+      const body: Record<string, string> = { id: me.id, position: selfForm.position, department: selfForm.department }
+      if (selfForm.pin.trim()) body.pin = selfForm.pin
+      const res = await fetch('/api/settings/members', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
       })
       if (res.ok) {
-        setOrgMsg({ type: 'success', text: '저장되었습니다.' })
-        await fetchSettings()
+        setSelfMsg({ type: 'success', text: '저장되었습니다.' })
+        setSelfForm(f => ({ ...f, pin: '' }))
+        await fetchMembers()
       } else {
-        setOrgMsg({ type: 'error', text: '저장에 실패했습니다.' })
+        const data = await res.json()
+        setSelfMsg({ type: 'error', text: data.error || '저장에 실패했습니다.' })
       }
-    } catch {
-      setOrgMsg({ type: 'error', text: '오류가 발생했습니다.' })
-    } finally {
-      setOrgSaving(false)
-    }
+    } catch { setSelfMsg({ type: 'error', text: '오류가 발생했습니다.' }) }
+    finally { setSelfLoading(false) }
+  }
+
+  // ── Leader member management ──
+  const handleSaveOrgNames = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setOrgSaving(true); setOrgMsg(null)
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teamName, divisionName, notionParentPageId })
+      })
+      if (res.ok) { setOrgMsg({ type: 'success', text: '저장되었습니다.' }); await fetchSettings() }
+      else setOrgMsg({ type: 'error', text: '저장에 실패했습니다.' })
+    } catch { setOrgMsg({ type: 'error', text: '오류가 발생했습니다.' }) }
+    finally { setOrgSaving(false) }
   }
 
   const handleAddMember = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setMemberLoading(true)
-    setMemberMsg(null)
+    e.preventDefault(); setMemberLoading(true); setMemberMsg(null)
     try {
       const res = await fetch('/api/settings/members', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newMember),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newMember)
       })
       if (res.ok) {
         setMemberMsg({ type: 'success', text: '팀원이 추가되었습니다. 초기 패스워드는 1234입니다.' })
         setNewMember({ name: '', position: '', department: '', role: 'member' })
         await fetchMembers()
       } else {
-        const data = await res.json()
-        setMemberMsg({ type: 'error', text: data.error })
+        const data = await res.json(); setMemberMsg({ type: 'error', text: data.error })
       }
-    } catch {
-      setMemberMsg({ type: 'error', text: '오류가 발생했습니다.' })
-    } finally {
-      setMemberLoading(false)
-    }
+    } catch { setMemberMsg({ type: 'error', text: '오류가 발생했습니다.' }) }
+    finally { setMemberLoading(false) }
   }
 
   const handleStartEdit = (member: MemberItem) => {
@@ -125,137 +144,120 @@ export default function SettingsClient({ session }: Props) {
     setEditForm({ position: member.position, department: member.department, role: member.role, pin: '' })
     setEditMsg(null)
   }
-
-  const handleCancelEdit = () => {
-    setEditingId(null)
-    setEditMsg(null)
-  }
+  const handleCancelEdit = () => { setEditingId(null); setEditMsg(null) }
 
   const handleSaveEdit = async (id: string) => {
-    setEditLoading(true)
-    setEditMsg(null)
-
-    // 팀장으로 변경 시 기존 팀장 있는지 확인
+    setEditLoading(true); setEditMsg(null)
     if (editForm.role === 'leader') {
       const currentMember = members.find(m => m.id === id)
       const hasOtherLeader = members.some(m => m.role === 'leader' && m.id !== id)
       if (hasOtherLeader && currentMember?.role !== 'leader') {
-        setEditMsg({ type: 'error', text: '팀장은 1명만 설정할 수 있습니다.' })
-        setEditLoading(false)
-        return
+        setEditMsg({ type: 'error', text: '팀장은 1명만 설정할 수 있습니다.' }); setEditLoading(false); return
       }
     }
-
     try {
-      const body: Record<string, string> = {
-        id,
-        position: editForm.position,
-        department: editForm.department,
-        role: editForm.role,
-      }
+      const body: Record<string, string> = { id, position: editForm.position, department: editForm.department, role: editForm.role }
       if (editForm.pin.trim()) body.pin = editForm.pin
-
       const res = await fetch('/api/settings/members', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
       })
-      if (res.ok) {
-        setEditMsg({ type: 'success', text: '수정되었습니다.' })
-        setEditingId(null)
-        await fetchMembers()
-      } else {
-        const data = await res.json()
-        setEditMsg({ type: 'error', text: data.error || '수정에 실패했습니다.' })
-      }
-    } catch {
-      setEditMsg({ type: 'error', text: '오류가 발생했습니다.' })
-    } finally {
-      setEditLoading(false)
-    }
+      if (res.ok) { setEditMsg({ type: 'success', text: '수정되었습니다.' }); setEditingId(null); await fetchMembers() }
+      else { const data = await res.json(); setEditMsg({ type: 'error', text: data.error || '수정에 실패했습니다.' }) }
+    } catch { setEditMsg({ type: 'error', text: '오류가 발생했습니다.' }) }
+    finally { setEditLoading(false) }
   }
 
   const handleDeleteMember = async (id: string, name: string) => {
     if (!confirm(`"${name}" 팀원을 삭제하시겠습니까?`)) return
-    await fetch('/api/settings/members', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }),
-    })
+    await fetch('/api/settings/members', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
     await fetchMembers()
   }
 
   const handleAddLegend = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newLegend.trim()) return
-    setLegendLoading(true)
-    setLegendMsg(null)
+    setLegendLoading(true); setLegendMsg(null)
     try {
       const res = await fetch('/api/settings/legends', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ label: newLegend }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ label: newLegend })
       })
-      if (res.ok) {
-        setLegendMsg({ type: 'success', text: '범례가 추가되었습니다.' })
-        setNewLegend('')
-        await fetchLegends()
-      } else {
-        setLegendMsg({ type: 'error', text: '추가에 실패했습니다.' })
-      }
-    } catch {
-      setLegendMsg({ type: 'error', text: '오류가 발생했습니다.' })
-    } finally {
-      setLegendLoading(false)
-    }
+      if (res.ok) { setLegendMsg({ type: 'success', text: '범례가 추가되었습니다.' }); setNewLegend(''); await fetchLegends() }
+      else setLegendMsg({ type: 'error', text: '추가에 실패했습니다.' })
+    } catch { setLegendMsg({ type: 'error', text: '오류가 발생했습니다.' }) }
+    finally { setLegendLoading(false) }
   }
 
   const handleDeleteLegend = async (id: string, label: string) => {
     if (!confirm(`"${label}" 범례를 삭제하시겠습니까?`)) return
-    await fetch('/api/settings/legends', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }),
-    })
+    await fetch('/api/settings/legends', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
     await fetchLegends()
   }
 
-  const tabs = [
+  const leaderCount = members.filter(m => m.role === 'leader').length
+
+  const leaderTabs = [
     { id: 'members', label: '팀원 관리' },
     { id: 'legends', label: '지원 범례' },
     { id: 'notion', label: 'Notion 연동' },
   ] as const
 
-  const leaderCount = members.filter(m => m.role === 'leader').length
+  const memberTabs = [
+    { id: 'myinfo', label: '내 정보' },
+    { id: 'legends', label: '지원 범례' },
+  ] as const
+
+  const tabs = isLeader ? leaderTabs : memberTabs
 
   return (
     <div className="min-h-screen bg-notion-sidebar">
       <Navbar userName={session.name} role={session.role} />
-
       <div className="max-w-3xl mx-auto px-4 py-8">
         <h1 className="text-xl font-semibold text-notion-text mb-6">환경설정</h1>
 
-        {/* 탭 */}
         <div className="flex border-b border-notion-border mb-6">
           {tabs.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
-                activeTab === tab.id
-                  ? 'border-notion-blue text-notion-blue'
-                  : 'border-transparent text-notion-gray hover:text-notion-text'
-              }`}
-            >
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+              className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${activeTab === tab.id ? 'border-notion-blue text-notion-blue' : 'border-transparent text-notion-gray hover:text-notion-text'}`}>
               {tab.label}
             </button>
           ))}
         </div>
 
-        {/* 팀원 관리 */}
-        {activeTab === 'members' && (
+        {/* ── 내 정보 (member only) ── */}
+        {activeTab === 'myinfo' && !isLeader && (
+          <div className="card">
+            <h2 className="text-sm font-semibold text-notion-text mb-3">내 정보 수정</h2>
+            <form onSubmit={handleSaveSelf} className="space-y-3">
+              <div>
+                <label className="block text-xs text-notion-gray mb-1">이름 (변경 불가)</label>
+                <input value={session.name} disabled className="input-field bg-notion-gray-bg cursor-not-allowed" />
+              </div>
+              <div>
+                <label className="block text-xs text-notion-gray mb-1">직책</label>
+                <input value={selfForm.position} onChange={e => setSelfForm(f => ({ ...f, position: e.target.value }))}
+                  className="input-field" placeholder="예: 과장, 수석 컨설턴트" />
+              </div>
+              <div>
+                <label className="block text-xs text-notion-gray mb-1">소속</label>
+                <input value={selfForm.department} onChange={e => setSelfForm(f => ({ ...f, department: e.target.value }))}
+                  className="input-field" placeholder="예: 통합기술본부 > 통합기술연구3팀" />
+              </div>
+              <div>
+                <label className="block text-xs text-notion-gray mb-1">새 패스워드 <span className="text-notion-gray font-normal">(변경 시에만 입력, 4자리 이상)</span></label>
+                <input type="password" value={selfForm.pin} onChange={e => setSelfForm(f => ({ ...f, pin: e.target.value }))}
+                  className="input-field" placeholder="변경하지 않으면 비워두세요" />
+              </div>
+              {selfMsg && <p className={`text-sm ${selfMsg.type === 'success' ? 'text-green-600' : 'text-red-500'}`}>{selfMsg.text}</p>}
+              <button type="submit" disabled={selfLoading} className="btn-primary">
+                {selfLoading ? '저장 중...' : '저장'}
+              </button>
+            </form>
+          </div>
+        )}
+
+        {/* ── 팀원 관리 (leader only) ── */}
+        {activeTab === 'members' && isLeader && (
           <div className="space-y-6">
-            {/* 현재 팀원 목록 */}
             <div className="card">
               <h2 className="text-sm font-semibold text-notion-text mb-3">등록된 팀원 ({members.length}명)</h2>
               {members.length === 0 ? (
@@ -265,96 +267,48 @@ export default function SettingsClient({ session }: Props) {
                   {members.map(member => (
                     <div key={member.id}>
                       {editingId === member.id ? (
-                        /* 인라인 편집 폼 */
                         <div className="border border-notion-blue rounded-lg p-3 bg-notion-blue-bg space-y-3">
                           <p className="text-sm font-medium text-notion-text">{member.name} 수정</p>
                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <label className="block text-xs text-notion-gray mb-1">직책</label>
-                              <input
-                                value={editForm.position}
-                                onChange={e => setEditForm(f => ({ ...f, position: e.target.value }))}
-                                className="input-field text-sm"
-                                placeholder="예: 과장"
-                              />
+                              <input value={editForm.position} onChange={e => setEditForm(f => ({ ...f, position: e.target.value }))} className="input-field text-sm" placeholder="예: 과장" />
                             </div>
                             <div>
                               <label className="block text-xs text-notion-gray mb-1">역할</label>
-                              <select
-                                value={editForm.role}
-                                onChange={e => setEditForm(f => ({ ...f, role: e.target.value as 'leader' | 'member' }))}
-                                className="input-field text-sm"
-                              >
+                              <select value={editForm.role} onChange={e => setEditForm(f => ({ ...f, role: e.target.value as 'leader' | 'member' }))} className="input-field text-sm">
                                 <option value="member">팀원</option>
-                                <option value="leader" disabled={leaderCount >= 1 && member.role !== 'leader'}>
-                                  팀장{leaderCount >= 1 && member.role !== 'leader' ? ' (이미 지정됨)' : ''}
-                                </option>
+                                <option value="leader" disabled={leaderCount >= 1 && member.role !== 'leader'}>팀장{leaderCount >= 1 && member.role !== 'leader' ? ' (이미 지정됨)' : ''}</option>
                               </select>
                             </div>
                           </div>
                           <div>
                             <label className="block text-xs text-notion-gray mb-1">소속</label>
-                            <input
-                              value={editForm.department}
-                              onChange={e => setEditForm(f => ({ ...f, department: e.target.value }))}
-                              className="input-field text-sm"
-                              placeholder="예: 통합기술본부 > 통합기술연구3팀"
-                            />
+                            <input value={editForm.department} onChange={e => setEditForm(f => ({ ...f, department: e.target.value }))} className="input-field text-sm" placeholder="예: 통합기술본부 > 통합기술연구3팀" />
                           </div>
                           <div>
                             <label className="block text-xs text-notion-gray mb-1">새 패스워드 <span className="text-notion-gray font-normal">(변경 시에만 입력)</span></label>
-                            <input
-                              type="password"
-                              value={editForm.pin}
-                              onChange={e => setEditForm(f => ({ ...f, pin: e.target.value }))}
-                              className="input-field text-sm"
-                              placeholder="변경하지 않으면 비워두세요"
-                            />
+                            <input type="password" value={editForm.pin} onChange={e => setEditForm(f => ({ ...f, pin: e.target.value }))} className="input-field text-sm" placeholder="변경하지 않으면 비워두세요" />
                           </div>
-                          {editMsg && (
-                            <p className={`text-xs ${editMsg.type === 'success' ? 'text-green-600' : 'text-red-500'}`}>{editMsg.text}</p>
-                          )}
+                          {editMsg && <p className={`text-xs ${editMsg.type === 'success' ? 'text-green-600' : 'text-red-500'}`}>{editMsg.text}</p>}
                           <div className="flex gap-2">
-                            <button
-                              onClick={() => handleSaveEdit(member.id)}
-                              disabled={editLoading}
-                              className="btn-primary text-sm py-1.5"
-                            >
-                              {editLoading ? '저장 중...' : '저장'}
-                            </button>
+                            <button onClick={() => handleSaveEdit(member.id)} disabled={editLoading} className="btn-primary text-sm py-1.5">{editLoading ? '저장 중...' : '저장'}</button>
                             <button onClick={handleCancelEdit} className="btn-secondary text-sm py-1.5">취소</button>
                           </div>
                         </div>
                       ) : (
-                        /* 일반 표시 행 */
                         <div className="flex items-center justify-between py-2 border-b border-notion-border last:border-0">
                           <div>
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-medium text-notion-text">{member.name}</span>
                               {member.position && <span className="text-xs text-notion-gray">{member.position}</span>}
-                              {member.role === 'leader' && (
-                                <span className="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded">팀장</span>
-                              )}
+                              {member.role === 'leader' && <span className="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded">팀장</span>}
                             </div>
-                            {member.department && (
-                            <p className="text-xs text-notion-gray mt-0.5">{member.department}</p>
-                          )}
+                            {member.department && <p className="text-xs text-notion-gray mt-0.5">{member.department}</p>}
                           </div>
                           <div className="flex gap-2">
-                            <button
-                              onClick={() => handleStartEdit(member)}
-                              disabled={!!editingId}
-                              className="text-xs text-notion-blue hover:underline disabled:opacity-40"
-                            >
-                              수정
-                            </button>
-                            <button
-                              onClick={() => handleDeleteMember(member.id, member.name)}
-                              disabled={!!editingId}
-                              className="text-xs text-red-400 hover:text-red-600 disabled:opacity-40"
-                            >
-                              삭제
-                            </button>
+                            <button onClick={() => handleStartEdit(member)} disabled={!!editingId} className="text-xs text-notion-blue hover:underline disabled:opacity-40">수정</button>
+                            <button onClick={() => handleDeleteMember(member.id, member.name)} disabled={!!editingId} className="text-xs text-red-400 hover:text-red-600 disabled:opacity-40">삭제</button>
                           </div>
                         </div>
                       )}
@@ -364,150 +318,97 @@ export default function SettingsClient({ session }: Props) {
               )}
             </div>
 
-            {/* 팀원 추가 */}
             <div className="card">
               <h2 className="text-sm font-semibold text-notion-text mb-1">팀원 추가</h2>
               <p className="text-xs text-notion-gray mb-3">초기 패스워드는 <strong>1234</strong>로 설정됩니다. 첫 로그인 시 변경이 강제됩니다.</p>
               <form onSubmit={handleAddMember} className="space-y-3">
                 <div>
                   <label className="block text-xs text-notion-gray mb-1">이름 *</label>
-                  <input
-                    value={newMember.name}
-                    onChange={e => setNewMember(p => ({ ...p, name: e.target.value }))}
-                    className="input-field"
-                    placeholder="홍길동"
-                    required
-                  />
+                  <input value={newMember.name} onChange={e => setNewMember(p => ({ ...p, name: e.target.value }))} className="input-field" placeholder="홍길동" required />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs text-notion-gray mb-1">직책</label>
-                    <input
-                      value={newMember.position}
-                      onChange={e => setNewMember(p => ({ ...p, position: e.target.value }))}
-                      className="input-field"
-                      placeholder="과장"
-                    />
+                    <input value={newMember.position} onChange={e => setNewMember(p => ({ ...p, position: e.target.value }))} className="input-field" placeholder="과장" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-notion-gray mb-1">역할</label>
+                    <select value={newMember.role} onChange={e => setNewMember(p => ({ ...p, role: e.target.value as 'leader' | 'member' }))} className="input-field">
+                      <option value="member">팀원</option>
+                      <option value="leader" disabled={leaderCount >= 1}>팀장{leaderCount >= 1 ? ' (이미 지정됨)' : ''}</option>
+                    </select>
                   </div>
                 </div>
                 <div>
                   <label className="block text-xs text-notion-gray mb-1">소속</label>
-                  <input
-                    value={newMember.department}
-                    onChange={e => setNewMember(p => ({ ...p, department: e.target.value }))}
-                    className="input-field"
-                    placeholder="통합기술본부 > 통합기술연구3팀"
-                  />
+                  <input value={newMember.department} onChange={e => setNewMember(p => ({ ...p, department: e.target.value }))} className="input-field" placeholder="통합기술본부 > 통합기술연구3팀" />
                 </div>
-                <div>
-                  <label className="block text-xs text-notion-gray mb-1">역할</label>
-                  <select
-                    value={newMember.role}
-                    onChange={e => setNewMember(p => ({ ...p, role: e.target.value as 'leader' | 'member' }))}
-                    className="input-field"
-                  >
-                    <option value="member">팀원</option>
-                    <option value="leader" disabled={leaderCount >= 1}>
-                      팀장{leaderCount >= 1 ? ' (이미 지정됨)' : ''}
-                    </option>
-                  </select>
-                </div>
-
-                {memberMsg && (
-                  <p className={`text-sm ${memberMsg.type === 'success' ? 'text-green-600' : 'text-red-500'}`}>{memberMsg.text}</p>
-                )}
-
-                <button type="submit" disabled={memberLoading} className="btn-primary">
-                  {memberLoading ? '추가 중...' : '팀원 추가'}
-                </button>
+                {memberMsg && <p className={`text-sm ${memberMsg.type === 'success' ? 'text-green-600' : 'text-red-500'}`}>{memberMsg.text}</p>}
+                <button type="submit" disabled={memberLoading} className="btn-primary">{memberLoading ? '추가 중...' : '팀원 추가'}</button>
               </form>
             </div>
           </div>
         )}
 
-        {/* 지원 범례 */}
+        {/* ── 지원 범례 ── */}
         {activeTab === 'legends' && (
-          <div className="space-y-6">
-            <div className="card">
-              <h2 className="text-sm font-semibold text-notion-text mb-1">고객사 지원 범례</h2>
-              <p className="text-xs text-notion-gray mb-3">일일보고 작성 시 지원 종류 드롭다운에 표시됩니다.</p>
-              {legends.length === 0 ? (
-                <p className="text-sm text-notion-gray">등록된 범례가 없습니다.</p>
-              ) : (
-                <div className="flex flex-wrap gap-2 mb-3">
-                  {legends.map(l => (
-                    <div key={l.id} className="flex items-center gap-1.5 bg-notion-gray-bg rounded-md px-2.5 py-1">
-                      <span className="text-sm text-notion-text">{l.label}</span>
+          <div className="card">
+            <h2 className="text-sm font-semibold text-notion-text mb-1">고객사 지원 범례</h2>
+            <p className="text-xs text-notion-gray mb-3">주간보고 작성 시 지원 종류 드롭다운에 표시됩니다.</p>
+            {legends.length === 0 ? (
+              <p className="text-sm text-notion-gray">등록된 범례가 없습니다.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2 mb-3">
+                {legends.map(l => (
+                  <div key={l.id} className="flex items-center gap-1.5 bg-notion-gray-bg rounded-md px-2.5 py-1">
+                    <span className="text-sm text-notion-text">{l.label}</span>
+                    {isLeader && (
                       <button onClick={() => handleDeleteLegend(l.id, l.label)} className="text-notion-gray hover:text-red-500 transition-colors">×</button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <form onSubmit={handleAddLegend} className="flex gap-2">
-                <input value={newLegend} onChange={e => setNewLegend(e.target.value)} className="input-field flex-1" placeholder="새 범례 입력 (예: DB 점검)" />
-                <button type="submit" disabled={legendLoading} className="btn-primary flex-shrink-0">
-                  {legendLoading ? '추가 중...' : '추가'}
-                </button>
-              </form>
-
-              {legendMsg && (
-                <p className={`text-sm mt-2 ${legendMsg.type === 'success' ? 'text-green-600' : 'text-red-500'}`}>{legendMsg.text}</p>
-              )}
-            </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            <form onSubmit={handleAddLegend} className="flex gap-2">
+              <input value={newLegend} onChange={e => setNewLegend(e.target.value)} className="input-field flex-1" placeholder="새 범례 입력 (예: DB 점검)" />
+              <button type="submit" disabled={legendLoading} className="btn-primary flex-shrink-0">{legendLoading ? '추가 중...' : '추가'}</button>
+            </form>
+            {legendMsg && <p className={`text-sm mt-2 ${legendMsg.type === 'success' ? 'text-green-600' : 'text-red-500'}`}>{legendMsg.text}</p>}
           </div>
         )}
 
-        {/* Notion 연동 */}
-        {activeTab === 'notion' && (
+        {/* ── Notion 연동 (leader only) ── */}
+        {activeTab === 'notion' && isLeader && (
           <div className="space-y-4">
             <div className="card">
-              <h2 className="text-sm font-semibold text-notion-text mb-3">조직 이름 설정</h2>
+              <h2 className="text-sm font-semibold text-notion-text mb-3">조직 이름 및 Notion 설정</h2>
               <form onSubmit={handleSaveOrgNames} className="space-y-3">
                 <div>
                   <label className="block text-xs text-notion-gray mb-1">팀 이름</label>
-                  <input
-                    type="text"
-                    value={teamName}
-                    onChange={e => setTeamName(e.target.value)}
-                    className="input-field"
-                    placeholder="예: 통합기술연구3팀"
-                  />
+                  <input type="text" value={teamName} onChange={e => setTeamName(e.target.value)} className="input-field" placeholder="예: 통합기술연구3팀" />
                 </div>
                 <div>
                   <label className="block text-xs text-notion-gray mb-1">본부 이름</label>
-                  <input
-                    type="text"
-                    value={divisionName}
-                    onChange={e => setDivisionName(e.target.value)}
-                    className="input-field"
-                    placeholder="예: 통합기술본부"
-                  />
+                  <input type="text" value={divisionName} onChange={e => setDivisionName(e.target.value)} className="input-field" placeholder="예: 통합기술본부" />
                 </div>
                 <div>
-                  <label className="block text-xs text-notion-gray mb-1">Notion 내보내기 DB ID <span className="text-notion-gray font-normal">(선택)</span></label>
-                  <input
-                    type="text"
-                    value={notionExportDbId}
-                    onChange={e => setNotionExportDbId(e.target.value)}
-                    className="input-field font-mono text-xs"
-                    placeholder="Notion으로 내보낼 때 사용할 DB ID"
-                  />
-                  <p className="text-xs text-notion-gray mt-1">주간보고를 Notion으로 내보낼 때 사용할 대상 DB ID입니다. 비워두면 Notion 내보내기 기능을 사용할 수 없습니다.</p>
+                  <label className="block text-xs text-notion-gray mb-1">Notion 부모 페이지 ID <span className="text-notion-gray font-normal">(선택)</span></label>
+                  <input type="text" value={notionParentPageId} onChange={e => setNotionParentPageId(e.target.value)} className="input-field font-mono text-xs" placeholder="Notion 페이지 URL에서 복사한 32자리 ID" />
+                  <p className="text-xs text-notion-gray mt-1">주간보고를 내보낼 Notion 페이지의 ID입니다. 해당 페이지에 Integration을 연결(Connect)해야 합니다.</p>
                 </div>
-                {orgMsg && (
-                  <p className={`text-sm ${orgMsg.type === 'success' ? 'text-green-600' : 'text-red-500'}`}>{orgMsg.text}</p>
-                )}
-                <button type="submit" disabled={orgSaving} className="btn-primary">
-                  {orgSaving ? '저장 중...' : '저장'}
-                </button>
+                {orgMsg && <p className={`text-sm ${orgMsg.type === 'success' ? 'text-green-600' : 'text-red-500'}`}>{orgMsg.text}</p>}
+                <button type="submit" disabled={orgSaving} className="btn-primary">{orgSaving ? '저장 중...' : '저장'}</button>
               </form>
             </div>
-
             <div className="card bg-notion-yellow-bg border-yellow-200">
-              <p className="text-sm text-yellow-800">
-                <strong>참고:</strong> Notion 내보내기를 사용하려면 Notion 토큰을 Vercel 환경 변수 또는 <code className="bg-yellow-100 px-1 rounded">.env.local</code>에서 설정하거나, <a href="/notion-setup" className="underline">Notion 연동 설정</a>에서 구성하세요.
-              </p>
+              <p className="text-sm text-yellow-800 font-semibold mb-1">Notion 연동 방법</p>
+              <ol className="text-xs text-yellow-800 space-y-1 list-decimal list-inside">
+                <li>notion.so/my-integrations 에서 Internal Integration 생성 후 토큰 복사</li>
+                <li>주간보고를 내보낼 Notion 페이지 생성</li>
+                <li>해당 페이지 우상단 ··· → Connections → 생성한 Integration 연결</li>
+                <li>페이지 URL에서 ID(32자리) 복사 → 위 입력란에 입력</li>
+                <li>Notion 토큰은 <a href="/notion-setup" className="underline">Notion 연동 설정</a> 페이지에서 설정</li>
+              </ol>
             </div>
           </div>
         )}

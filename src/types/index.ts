@@ -18,7 +18,7 @@ export interface LegendItem {
 export interface AppSettings {
   teamName: string
   divisionName: string
-  notionExportDbId: string  // Notion 내보내기용 DB ID (선택)
+  notionParentPageId: string  // Notion 내보내기용 부모 페이지 ID (선택)
 }
 
 // 일일보고 (간소화 - 개인 회고만)

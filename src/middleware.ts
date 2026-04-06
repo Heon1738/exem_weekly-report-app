@@ -23,11 +23,6 @@ export async function middleware(request: NextRequest) {
   try {
     const { payload } = await jwtVerify(token, SECRET)
 
-    // 설정 페이지는 팀장만
-    if (pathname.startsWith('/settings') && payload.role !== 'leader') {
-      return NextResponse.redirect(new URL('/daily', request.url))
-    }
-
     return NextResponse.next()
   } catch {
     return NextResponse.redirect(new URL('/login', request.url))

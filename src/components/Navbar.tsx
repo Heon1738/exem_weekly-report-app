@@ -22,7 +22,7 @@ export default function Navbar({ userName, role }: NavbarProps) {
   const links = [
     { href: '/daily', label: '일일보고' },
     { href: '/weekly', label: '주간보고' },
-    ...(role === 'leader' ? [{ href: '/settings', label: '환경설정' }] : []),
+    { href: '/settings', label: '환경설정' },
   ]
 
   return (

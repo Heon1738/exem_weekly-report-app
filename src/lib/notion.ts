@@ -3,102 +3,108 @@ import { Client } from '@notionhq/client'
 import { getNotionConfig } from './notion-config'
 import type { Member, AppSettings, WeeklyDraft } from '@/types'
 
-async function getNotion(): Promise<Client> {
+async function getClient(settings: AppSettings): Promise<{ notion: Client; parentPageId: string }> {
   const config = await getNotionConfig()
-  return new Client({ auth: config?.token || process.env.NOTION_TOKEN })
+  const token = config?.token || process.env.NOTION_TOKEN
+  if (!token) throw new Error('Notion 토큰이 설정되지 않았습니다.')
+  // Use settings parentPageId as primary; cookie parentPageId as fallback
+  const parentPageId = settings.notionParentPageId || config?.parentPageId || ''
+  if (!parentPageId) throw new Error('Notion 부모 페이지 ID가 설정되지 않았습니다. 환경설정 → Notion 연동에서 설정해주세요.')
+  return { notion: new Client({ auth: token }), parentPageId }
 }
 
-// Notion 주간보고 페이지를 정식 포맷으로 내보내기
-export async function exportWeeklyToNotion(draft: WeeklyDraft, settings: AppSettings, member: Member): Promise<string> {
-  const notion = await getNotion()
-  const dbId = settings.notionExportDbId
-  if (!dbId) throw new Error('Notion 내보내기 DB ID가 설정되지 않았습니다. 환경설정 → Notion 연동에서 설정해주세요.')
+function buildPageTitle(weekStart: string, memberName: string): string {
+  const d = new Date(weekStart)
+  const month = d.getMonth() + 1
+  const weekOfMonth = Math.ceil((d.getDate() - 1) / 7) + 1
+  return `${month}월 ${weekOfMonth}주차 주간보고 - ${memberName}`
+}
 
+async function findExistingPage(title: string, parentPageId: string, notion: Client): Promise<string | null> {
+  try {
+    const res = await notion.search({ query: title, filter: { property: 'object', value: 'page' }, page_size: 20 })
+    const normalizedParent = parentPageId.replace(/-/g, '')
+    const match = (res.results as any[]).find(p => {
+      const pParent = (p.parent?.page_id || '').replace(/-/g, '')
+      const titleArr = p.properties?.title?.title || []
+      const pTitle = titleArr.map((t: any) => t.plain_text).join('')
+      return pParent === normalizedParent && pTitle === title
+    })
+    return match?.id || null
+  } catch { return null }
+}
+
+function buildBodyContent(draft: WeeklyDraft, settings: AppSettings, member: Member): any[] {
   const authorLabel = `${settings.divisionName} > ${settings.teamName} > ${member.name} ${member.position}`
-  const weekTitle = buildWeeklyTitle(new Date(draft.weekStart))
-
-  const s1Blocks = buildS1(draft.section1)
-  const s2Blocks = buildS2(draft.section2)
-  const s3Blocks = buildS3(draft.section3, member)
-  const s4Blocks = buildS4(draft.section4)
-  const s5Blocks = buildS5(draft.section5)
-  const s6Blocks = buildS6(draft.section6)
-
   const bodyChildren: any[] = [
     { type: 'heading_2', heading_2: { rich_text: [{ type: 'text', text: { content: `1. ${settings.teamName} 주요 업무 진행 상황` } }] } },
-    ...s1Blocks,
+    ...buildS1(draft.section1),
     { type: 'heading_2', heading_2: { rich_text: [{ type: 'text', text: { content: '2. 주요 성과' } }] } },
-    ...s2Blocks,
+    ...buildS2(draft.section2),
     { type: 'heading_2', heading_2: { rich_text: [{ type: 'text', text: { content: '3. 고객사 지원 주요 내역' } }] } },
-    ...s3Blocks,
+    ...buildS3(draft.section3, member),
     { type: 'heading_2', heading_2: { rich_text: [{ type: 'text', text: { content: '4. 예정된 작업' } }] } },
-    ...s4Blocks,
+    ...buildS4(draft.section4),
     { type: 'heading_2', heading_2: { rich_text: [{ type: 'text', text: { content: '5. DEQ 진행 상황' } }] } },
-    ...s5Blocks,
+    ...buildS5(draft.section5),
     { type: 'heading_2', heading_2: { rich_text: [{ type: 'text', text: { content: '6. 팀에 대한 의견' } }] } },
-    ...s6Blocks,
+    ...buildS6(draft.section6),
   ]
+  return [
+    { type: 'table_of_contents', table_of_contents: { color: 'gray' } } as any,
+    { type: 'heading_1', heading_1: { rich_text: [{ type: 'text', text: { content: authorLabel } }], is_toggleable: true, children: bodyChildren } } as any,
+  ]
+}
 
-  const existing = await findExistingWeeklyPage(draft.weekStart, draft.weekEnd, member.name, dbId, notion)
-
+async function upsertPage(notion: Client, parentPageId: string, pageTitle: string, bodyContent: any[]): Promise<string> {
+  const existing = await findExistingPage(pageTitle, parentPageId, notion)
   if (existing) {
     const blocks = await notion.blocks.children.list({ block_id: existing })
-    for (const block of blocks.results as any[]) {
+    for (const block of blocks.results) {
       await notion.blocks.update({ block_id: block.id, archived: true } as any)
     }
-    await notion.blocks.children.append({
-      block_id: existing,
-      children: [
-        { type: 'table_of_contents', table_of_contents: { color: 'gray' } },
-        { type: 'heading_1', heading_1: { rich_text: [{ type: 'text', text: { content: authorLabel } }], is_toggleable: true, children: bodyChildren } } as any,
-      ],
-    })
-    await notion.pages.update({
-      page_id: existing,
-      properties: {
-        '주간보고서 (클릭)': { title: [{ text: { content: weekTitle } }] },
-        '보고 기간': { date: { start: draft.weekStart, end: draft.weekEnd } },
-        '작성 일자': { date: { start: new Date().toISOString().split('T')[0] } },
-      },
-    })
+    await notion.blocks.children.append({ block_id: existing, children: bodyContent })
     return existing
   }
-
   const page = await notion.pages.create({
-    parent: { database_id: dbId },
-    properties: {
-      '주간보고서 (클릭)': { title: [{ text: { content: weekTitle } }] },
-      '보고 기간': { date: { start: draft.weekStart, end: draft.weekEnd } },
-      '작성자': { rich_text: [{ text: { content: member.name } }] },
-      '작성 일자': { date: { start: new Date().toISOString().split('T')[0] } },
-    },
-    children: [
-      { type: 'table_of_contents', table_of_contents: { color: 'gray' } } as any,
-      { type: 'heading_1', heading_1: { rich_text: [{ type: 'text', text: { content: authorLabel } }], is_toggleable: true, children: bodyChildren } } as any,
-    ],
+    parent: { page_id: parentPageId } as any,
+    properties: { title: [{ text: { content: pageTitle } }] } as any,
+    children: bodyContent,
   })
   return page.id
 }
 
-async function findExistingWeeklyPage(weekStart: string, weekEnd: string, authorName: string, dbId: string, notion: Client): Promise<string | null> {
-  try {
-    const res = await notion.databases.query({
-      database_id: dbId,
-      filter: { and: [
-        { property: '작성자', rich_text: { equals: authorName } },
-        { property: '보고 기간', date: { on_or_after: weekStart } },
-        { property: '보고 기간', date: { on_or_before: weekEnd } },
-      ]},
-    })
-    return res.results.length > 0 ? res.results[0].id : null
-  } catch { return null }
+export async function exportWeeklyToNotion(draft: WeeklyDraft, settings: AppSettings, member: Member): Promise<string> {
+  const { notion, parentPageId } = await getClient(settings)
+  const pageTitle = buildPageTitle(draft.weekStart, member.name)
+  const bodyContent = buildBodyContent(draft, settings, member)
+  return upsertPage(notion, parentPageId, pageTitle, bodyContent)
 }
 
-function buildWeeklyTitle(weekStart: Date): string {
-  const month = weekStart.getMonth() + 1
-  const weekOfMonth = Math.ceil((weekStart.getDate() - 1) / 7) + 1
-  return `${month}월 ${weekOfMonth}주차 주간 보고`
+export async function exportAllMembersWeeklyToNotion(
+  weekStart: string,
+  membersData: Member[],
+  draftsMap: Map<string, WeeklyDraft>,
+  settings: AppSettings
+): Promise<{ name: string; pageId: string; error?: string }[]> {
+  const { notion, parentPageId } = await getClient(settings)
+  const results: { name: string; pageId: string; error?: string }[] = []
+  for (const member of membersData) {
+    const draft = draftsMap.get(member.name)
+    if (!draft) { results.push({ name: member.name, pageId: '', error: '작성된 주간보고 없음' }); continue }
+    try {
+      const pageTitle = buildPageTitle(weekStart, member.name)
+      const bodyContent = buildBodyContent(draft, settings, member)
+      const pageId = await upsertPage(notion, parentPageId, pageTitle, bodyContent)
+      results.push({ name: member.name, pageId })
+    } catch (e: any) {
+      results.push({ name: member.name, pageId: '', error: e.message || '내보내기 실패' })
+    }
+  }
+  return results
 }
+
+// ── Section builders ──
 
 function buildS1(items: WeeklyDraft['section1']): any[] {
   if (!items.length) return [empty()]
@@ -152,10 +158,7 @@ function buildS3(items: WeeklyDraft['section3'], member: Member): any[] {
 
 function buildS4(items: string[]): any[] {
   if (!items.filter(Boolean).length) return [empty()]
-  return items.filter(Boolean).map(content => ({
-    type: 'bulleted_list_item',
-    bulleted_list_item: { rich_text: [{ type: 'text', text: { content } }], color: 'default' },
-  }))
+  return items.filter(Boolean).map(content => ({ type: 'bulleted_list_item', bulleted_list_item: { rich_text: [{ type: 'text', text: { content } }], color: 'default' } }))
 }
 
 function buildS5(items: WeeklyDraft['section5']): any[] {
@@ -166,10 +169,7 @@ function buildS5(items: WeeklyDraft['section5']): any[] {
     bulleted_list_item: {
       rich_text: [
         { type: 'text', text: { content: item.description } },
-        ...(item.link ? [
-          { type: 'text', text: { content: '  ' } },
-          { type: 'text', text: { content: item.link, link: { url: item.link.startsWith('http') ? item.link : `https://${item.link}` } } },
-        ] : []),
+        ...(item.link ? [{ type: 'text', text: { content: '  ' } }, { type: 'text', text: { content: item.link, link: { url: item.link.startsWith('http') ? item.link : `https://${item.link}` } } }] : []),
       ],
       color: 'default',
     },

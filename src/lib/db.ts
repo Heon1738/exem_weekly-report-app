@@ -89,12 +89,12 @@ export async function getAppSettings(): Promise<AppSettings | null> {
     return {
       teamName: r.team_name,
       divisionName: r.division_name,
-      notionExportDbId: r.notion_export_db_id,
+      notionParentPageId: r.notion_export_db_id,
     }
   } catch { return null }
 }
 
-export async function updateAppSettings(updates: Partial<Pick<AppSettings, 'teamName' | 'divisionName' | 'notionExportDbId'>>): Promise<void> {
+export async function updateAppSettings(updates: Partial<Pick<AppSettings, 'teamName' | 'divisionName' | 'notionParentPageId'>>): Promise<void> {
   const current = await getAppSettings()
   if (!current) return
   const merged = { ...current, ...updates }
@@ -102,7 +102,7 @@ export async function updateAppSettings(updates: Partial<Pick<AppSettings, 'team
     UPDATE app_settings
     SET team_name=${merged.teamName},
         division_name=${merged.divisionName},
-        notion_export_db_id=${merged.notionExportDbId}
+        notion_export_db_id=${merged.notionParentPageId}
     WHERE id=(SELECT id FROM app_settings LIMIT 1)
   `
 }
