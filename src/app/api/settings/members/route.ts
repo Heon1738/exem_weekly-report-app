@@ -32,12 +32,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: '이름과 PIN은 필수입니다.' }, { status: 400 })
   }
 
+  // 팀장은 1명만 허용
+  if (role === 'leader') {
+    const existingMembers = await getMembers(settings.membersDbId)
+    const alreadyHasLeader = existingMembers.some(m => m.role === 'leader')
+    if (alreadyHasLeader) {
+      return NextResponse.json({ error: '팀장은 1명만 설정할 수 있습니다. 기존 팀장을 먼저 팀원으로 변경해주세요.' }, { status: 400 })
+    }
+  }
+
   const member = await createMember(settings.membersDbId, {
     name,
     position: position || '',
     department: department || '',
     role: role || 'member',
-    pinHash: hashPin(pin),
+    pinHash: hashPin('1234'),  // 초기 PIN은 항상 1234
   })
 
   return NextResponse.json({ success: true, id: member.id })

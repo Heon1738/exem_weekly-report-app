@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Navbar from '@/components/Navbar'
 import type { JwtPayload, DailyReport } from '@/types'
-import { EMOTION_OPTIONS, autoFillFromFeeling } from '@/types'
+import { EMOTION_OPTIONS } from '@/types'
 
 interface Props { session: JwtPayload }
 
@@ -32,14 +32,34 @@ export default function DailyReportClient({ session }: Props) {
     } catch {}
   }
 
-  const handleAutoFill = () => {
+  const [autoFilling, setAutoFilling] = useState(false)
+
+  const handleAutoFill = async () => {
     if (!form.dailyFeeling.trim()) {
       setMessage({ type: 'error', text: '먼저 하루 느낀점을 입력해주세요.' })
       return
     }
-    const filled = autoFillFromFeeling(form.dailyFeeling)
-    setForm(f => ({ ...f, ...filled }))
-    setMessage({ type: 'success', text: '자동 채우기 완료! 내용을 확인하고 수정해주세요.' })
+    setAutoFilling(true)
+    setMessage(null)
+    try {
+      const res = await fetch('/api/daily/autofill', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dailyFeeling: form.dailyFeeling }),
+      })
+      if (res.ok) {
+        const filled = await res.json()
+        setForm(f => ({ ...f, ...filled }))
+        setMessage({ type: 'success', text: '자동 채우기 완료! 내용을 확인하고 수정해주세요.' })
+      } else {
+        const data = await res.json()
+        setMessage({ type: 'error', text: data.error || '자동 채우기에 실패했습니다.' })
+      }
+    } catch {
+      setMessage({ type: 'error', text: '자동 채우기 중 오류가 발생했습니다.' })
+    } finally {
+      setAutoFilling(false)
+    }
   }
 
   const handleSave = async () => {
@@ -157,9 +177,10 @@ export default function DailyReportClient({ session }: Props) {
               <button
                 type="button"
                 onClick={handleAutoFill}
-                className="text-xs bg-notion-blue text-white px-2.5 py-1 rounded-md hover:bg-blue-600 transition-colors"
+                disabled={autoFilling}
+                className="text-xs bg-notion-blue text-white px-2.5 py-1 rounded-md hover:bg-blue-600 transition-colors disabled:opacity-60"
               >
-                ✨ 자동 채우기
+                {autoFilling ? '분석 중...' : '✨ 자동 채우기'}
               </button>
             </div>
             <textarea

@@ -13,13 +13,19 @@ export default function LoginPage() {
   const [initializing, setInitializing] = useState(false)
   const [setupDone, setSetupDone] = useState(false)
 
+  // PIN 변경 화면 상태
+  const [changingPin, setChangingPin] = useState(false)
+  const [currentPin, setCurrentPin] = useState('')
+  const [newPin, setNewPin] = useState('')
+  const [newPinConfirm, setNewPinConfirm] = useState('')
+  const [pinChangeLoading, setPinChangeLoading] = useState(false)
+
   useEffect(() => {
     fetchMembers()
   }, [])
 
   const fetchMembers = async () => {
     try {
-      // 공개 엔드포인트 - 인증 없이 이름 목록만 반환
       const res = await fetch('/api/auth/members')
       if (res.ok) {
         const data = await res.json()
@@ -66,7 +72,15 @@ export default function LoginPage() {
       const data = await res.json()
 
       if (res.ok) {
-        router.push('/daily')
+        if (data.mustChangePin) {
+          // 초기 PIN(1234) → 변경 화면으로
+          setCurrentPin(pin)
+          setChangingPin(true)
+          setPin('')
+          setError('')
+        } else {
+          router.push('/daily')
+        }
       } else {
         setError(data.error || '로그인에 실패했습니다.')
       }
@@ -77,8 +91,91 @@ export default function LoginPage() {
     }
   }
 
-  // 초기화 완료됐지만 members가 아직 로딩 중인 상태
+  const handleChangePin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (newPin !== newPinConfirm) {
+      setError('새 PIN이 일치하지 않습니다.')
+      return
+    }
+    if (newPin.length < 4) {
+      setError('PIN은 4자리 이상이어야 합니다.')
+      return
+    }
+    if (newPin === '1234') {
+      setError('1234는 사용할 수 없습니다.')
+      return
+    }
+
+    setPinChangeLoading(true)
+    setError('')
+    try {
+      const res = await fetch('/api/auth/change-pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPin, newPin }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        router.push('/daily')
+      } else {
+        setError(data.error || 'PIN 변경에 실패했습니다.')
+      }
+    } catch {
+      setError('PIN 변경 중 오류가 발생했습니다.')
+    } finally {
+      setPinChangeLoading(false)
+    }
+  }
+
   const showLoginForm = members.length > 0
+
+  // PIN 변경 화면
+  if (changingPin) {
+    return (
+      <div className="min-h-screen bg-notion-sidebar flex items-center justify-center p-4">
+        <div className="w-full max-w-sm">
+          <div className="text-center mb-8">
+            <div className="text-4xl mb-3">🔐</div>
+            <h1 className="text-2xl font-semibold text-notion-text">PIN 변경 필요</h1>
+            <p className="text-sm text-notion-gray mt-1">초기 PIN(1234)을 새로운 PIN으로 변경해주세요.</p>
+          </div>
+
+          <form onSubmit={handleChangePin} className="card space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-notion-text mb-1.5">새 PIN</label>
+              <input
+                type="password"
+                value={newPin}
+                onChange={e => setNewPin(e.target.value)}
+                placeholder="새 PIN 입력 (4자리 이상)"
+                className="input-field"
+                maxLength={20}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-notion-text mb-1.5">새 PIN 확인</label>
+              <input
+                type="password"
+                value={newPinConfirm}
+                onChange={e => setNewPinConfirm(e.target.value)}
+                placeholder="새 PIN 다시 입력"
+                className="input-field"
+                maxLength={20}
+                required
+              />
+            </div>
+
+            {error && <p className="text-sm text-red-500">{error}</p>}
+
+            <button type="submit" disabled={pinChangeLoading} className="btn-primary w-full">
+              {pinChangeLoading ? '변경 중...' : 'PIN 변경 완료'}
+            </button>
+          </form>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-notion-sidebar flex items-center justify-center p-4">
@@ -141,7 +238,7 @@ export default function LoginPage() {
                 onChange={e => setPin(e.target.value)}
                 placeholder="PIN을 입력하세요"
                 className="input-field"
-                maxLength={10}
+                maxLength={20}
                 required
               />
             </div>

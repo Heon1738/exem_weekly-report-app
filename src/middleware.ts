@@ -5,7 +5,7 @@ const SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || 'weekly-report-app-secret-key'
 )
 
-const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/auth/members', '/api/setup']
+const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/auth/members', '/api/setup', '/api/auth/change-pin']
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl

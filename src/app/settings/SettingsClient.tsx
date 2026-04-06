@@ -21,9 +21,15 @@ export default function SettingsClient({ session }: Props) {
 
   // 팀원
   const [members, setMembers] = useState<MemberItem[]>([])
-  const [newMember, setNewMember] = useState({ name: '', position: '', department: '', role: 'member' as 'leader' | 'member', pin: '' })
+  const [newMember, setNewMember] = useState({ name: '', position: '', department: '', role: 'member' as 'leader' | 'member' })
   const [memberLoading, setMemberLoading] = useState(false)
   const [memberMsg, setMemberMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
+  // 인라인 편집
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState({ position: '', department: '', role: 'member' as 'leader' | 'member', pin: '' })
+  const [editLoading, setEditLoading] = useState(false)
+  const [editMsg, setEditMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   // 범례
   const [legends, setLegends] = useState<LegendItem[]>([])
@@ -98,8 +104,8 @@ export default function SettingsClient({ session }: Props) {
         body: JSON.stringify(newMember),
       })
       if (res.ok) {
-        setMemberMsg({ type: 'success', text: '팀원이 추가되었습니다.' })
-        setNewMember({ name: '', position: '', department: '', role: 'member', pin: '' })
+        setMemberMsg({ type: 'success', text: '팀원이 추가되었습니다. 초기 PIN은 1234입니다.' })
+        setNewMember({ name: '', position: '', department: '', role: 'member' })
         await fetchMembers()
       } else {
         const data = await res.json()
@@ -109,6 +115,61 @@ export default function SettingsClient({ session }: Props) {
       setMemberMsg({ type: 'error', text: '오류가 발생했습니다.' })
     } finally {
       setMemberLoading(false)
+    }
+  }
+
+  const handleStartEdit = (member: MemberItem) => {
+    setEditingId(member.id)
+    setEditForm({ position: member.position, department: member.department, role: member.role, pin: '' })
+    setEditMsg(null)
+  }
+
+  const handleCancelEdit = () => {
+    setEditingId(null)
+    setEditMsg(null)
+  }
+
+  const handleSaveEdit = async (id: string) => {
+    setEditLoading(true)
+    setEditMsg(null)
+
+    // 팀장으로 변경 시 기존 팀장 있는지 확인
+    if (editForm.role === 'leader') {
+      const currentMember = members.find(m => m.id === id)
+      const hasOtherLeader = members.some(m => m.role === 'leader' && m.id !== id)
+      if (hasOtherLeader && currentMember?.role !== 'leader') {
+        setEditMsg({ type: 'error', text: '팀장은 1명만 설정할 수 있습니다.' })
+        setEditLoading(false)
+        return
+      }
+    }
+
+    try {
+      const body: Record<string, string> = {
+        id,
+        position: editForm.position,
+        department: editForm.department,
+        role: editForm.role,
+      }
+      if (editForm.pin.trim()) body.pin = editForm.pin
+
+      const res = await fetch('/api/settings/members', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (res.ok) {
+        setEditMsg({ type: 'success', text: '수정되었습니다.' })
+        setEditingId(null)
+        await fetchMembers()
+      } else {
+        const data = await res.json()
+        setEditMsg({ type: 'error', text: data.error || '수정에 실패했습니다.' })
+      }
+    } catch {
+      setEditMsg({ type: 'error', text: '오류가 발생했습니다.' })
+    } finally {
+      setEditLoading(false)
     }
   }
 
@@ -163,6 +224,8 @@ export default function SettingsClient({ session }: Props) {
     { id: 'notion', label: 'Notion 연동' },
   ] as const
 
+  const leaderCount = members.filter(m => m.role === 'leader').length
+
   return (
     <div className="min-h-screen bg-notion-sidebar">
       <Navbar userName={session.name} role={session.role} />
@@ -196,25 +259,101 @@ export default function SettingsClient({ session }: Props) {
               {members.length === 0 ? (
                 <p className="text-sm text-notion-gray">등록된 팀원이 없습니다.</p>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {members.map(member => (
-                    <div key={member.id} className="flex items-center justify-between py-2 border-b border-notion-border last:border-0">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-notion-text">{member.name}</span>
-                          <span className="text-xs text-notion-gray">{member.position}</span>
-                          {member.role === 'leader' && (
-                            <span className="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded">팀장</span>
+                    <div key={member.id}>
+                      {editingId === member.id ? (
+                        /* 인라인 편집 폼 */
+                        <div className="border border-notion-blue rounded-lg p-3 bg-notion-blue-bg space-y-3">
+                          <p className="text-sm font-medium text-notion-text">{member.name} 수정</p>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-xs text-notion-gray mb-1">직책</label>
+                              <input
+                                value={editForm.position}
+                                onChange={e => setEditForm(f => ({ ...f, position: e.target.value }))}
+                                className="input-field text-sm"
+                                placeholder="예: 과장"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-notion-gray mb-1">역할</label>
+                              <select
+                                value={editForm.role}
+                                onChange={e => setEditForm(f => ({ ...f, role: e.target.value as 'leader' | 'member' }))}
+                                className="input-field text-sm"
+                              >
+                                <option value="member">팀원</option>
+                                <option value="leader" disabled={leaderCount >= 1 && member.role !== 'leader'}>
+                                  팀장{leaderCount >= 1 && member.role !== 'leader' ? ' (이미 지정됨)' : ''}
+                                </option>
+                              </select>
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-xs text-notion-gray mb-1">소속</label>
+                            <input
+                              value={editForm.department}
+                              onChange={e => setEditForm(f => ({ ...f, department: e.target.value }))}
+                              className="input-field text-sm"
+                              placeholder="예: 통합기술본부 > 통합기술연구3팀"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-notion-gray mb-1">새 PIN <span className="text-notion-gray font-normal">(변경 시에만 입력)</span></label>
+                            <input
+                              type="password"
+                              value={editForm.pin}
+                              onChange={e => setEditForm(f => ({ ...f, pin: e.target.value }))}
+                              className="input-field text-sm"
+                              placeholder="변경하지 않으면 비워두세요"
+                            />
+                          </div>
+                          {editMsg && (
+                            <p className={`text-xs ${editMsg.type === 'success' ? 'text-green-600' : 'text-red-500'}`}>{editMsg.text}</p>
                           )}
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleSaveEdit(member.id)}
+                              disabled={editLoading}
+                              className="btn-primary text-sm py-1.5"
+                            >
+                              {editLoading ? '저장 중...' : '저장'}
+                            </button>
+                            <button onClick={handleCancelEdit} className="btn-secondary text-sm py-1.5">취소</button>
+                          </div>
                         </div>
-                        <p className="text-xs text-notion-gray mt-0.5">{member.department}</p>
-                      </div>
-                      <button
-                        onClick={() => handleDeleteMember(member.id, member.name)}
-                        className="text-xs text-red-400 hover:text-red-600"
-                      >
-                        삭제
-                      </button>
+                      ) : (
+                        /* 일반 표시 행 */
+                        <div className="flex items-center justify-between py-2 border-b border-notion-border last:border-0">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium text-notion-text">{member.name}</span>
+                              {member.position && <span className="text-xs text-notion-gray">{member.position}</span>}
+                              {member.role === 'leader' && (
+                                <span className="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded">팀장</span>
+                              )}
+                            </div>
+                            {member.department && <p className="text-xs text-notion-gray mt-0.5">{member.department}</p>}
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleStartEdit(member)}
+                              disabled={!!editingId}
+                              className="text-xs text-notion-blue hover:underline disabled:opacity-40"
+                            >
+                              수정
+                            </button>
+                            <button
+                              onClick={() => handleDeleteMember(member.id, member.name)}
+                              disabled={!!editingId}
+                              className="text-xs text-red-400 hover:text-red-600 disabled:opacity-40"
+                            >
+                              삭제
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -223,34 +362,51 @@ export default function SettingsClient({ session }: Props) {
 
             {/* 팀원 추가 */}
             <div className="card">
-              <h2 className="text-sm font-semibold text-notion-text mb-3">팀원 추가</h2>
+              <h2 className="text-sm font-semibold text-notion-text mb-1">팀원 추가</h2>
+              <p className="text-xs text-notion-gray mb-3">초기 PIN은 <strong>1234</strong>로 설정됩니다. 첫 로그인 시 변경이 강제됩니다.</p>
               <form onSubmit={handleAddMember} className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs text-notion-gray mb-1">이름 *</label>
-                    <input value={newMember.name} onChange={e => setNewMember(p => ({ ...p, name: e.target.value }))} className="input-field" placeholder="홍길동" required />
+                    <input
+                      value={newMember.name}
+                      onChange={e => setNewMember(p => ({ ...p, name: e.target.value }))}
+                      className="input-field"
+                      placeholder="홍길동"
+                      required
+                    />
                   </div>
                   <div>
                     <label className="block text-xs text-notion-gray mb-1">직책</label>
-                    <input value={newMember.position} onChange={e => setNewMember(p => ({ ...p, position: e.target.value }))} className="input-field" placeholder="과장" />
+                    <input
+                      value={newMember.position}
+                      onChange={e => setNewMember(p => ({ ...p, position: e.target.value }))}
+                      className="input-field"
+                      placeholder="과장"
+                    />
                   </div>
                 </div>
                 <div>
                   <label className="block text-xs text-notion-gray mb-1">소속</label>
-                  <input value={newMember.department} onChange={e => setNewMember(p => ({ ...p, department: e.target.value }))} className="input-field" placeholder="통합기술본부 > 통합기술연구3팀" />
+                  <input
+                    value={newMember.department}
+                    onChange={e => setNewMember(p => ({ ...p, department: e.target.value }))}
+                    className="input-field"
+                    placeholder="통합기술본부 > 통합기술연구3팀"
+                  />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs text-notion-gray mb-1">역할</label>
-                    <select value={newMember.role} onChange={e => setNewMember(p => ({ ...p, role: e.target.value as 'leader' | 'member' }))} className="input-field">
-                      <option value="member">팀원</option>
-                      <option value="leader">팀장</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs text-notion-gray mb-1">PIN *</label>
-                    <input type="password" value={newMember.pin} onChange={e => setNewMember(p => ({ ...p, pin: e.target.value }))} className="input-field" placeholder="로그인 PIN" required />
-                  </div>
+                <div>
+                  <label className="block text-xs text-notion-gray mb-1">역할</label>
+                  <select
+                    value={newMember.role}
+                    onChange={e => setNewMember(p => ({ ...p, role: e.target.value as 'leader' | 'member' }))}
+                    className="input-field"
+                  >
+                    <option value="member">팀원</option>
+                    <option value="leader" disabled={leaderCount >= 1}>
+                      팀장{leaderCount >= 1 ? ' (이미 지정됨)' : ''}
+                    </option>
+                  </select>
                 </div>
 
                 {memberMsg && (
@@ -270,7 +426,7 @@ export default function SettingsClient({ session }: Props) {
           <div className="space-y-6">
             <div className="card">
               <h2 className="text-sm font-semibold text-notion-text mb-1">고객사 지원 범례</h2>
-              <p className="text-xs text-notion-gray mb-3">일일보고 작성 시 "고객사 지원 주요 내역"의 지원 종류 드롭다운에 표시됩니다.</p>
+              <p className="text-xs text-notion-gray mb-3">일일보고 작성 시 지원 종류 드롭다운에 표시됩니다.</p>
               {legends.length === 0 ? (
                 <p className="text-sm text-notion-gray">등록된 범례가 없습니다.</p>
               ) : (
@@ -301,7 +457,6 @@ export default function SettingsClient({ session }: Props) {
         {/* Notion 연동 */}
         {activeTab === 'notion' && (
           <div className="space-y-4">
-            {/* 팀/본부 이름 수정 */}
             <div className="card">
               <h2 className="text-sm font-semibold text-notion-text mb-3">조직 이름 설정</h2>
               <form onSubmit={handleSaveOrgNames} className="space-y-3">
@@ -334,7 +489,6 @@ export default function SettingsClient({ session }: Props) {
               </form>
             </div>
 
-            {/* DB 정보 (읽기 전용) */}
             <div className="card">
               <h2 className="text-sm font-semibold text-notion-text mb-3">Notion DB 정보</h2>
               <div className="space-y-3">

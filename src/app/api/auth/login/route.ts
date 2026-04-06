@@ -27,13 +27,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'PIN이 올바르지 않습니다.' }, { status: 401 })
     }
 
+    // 초기 PIN(1234) 사용 중이면 변경 강제
+    const mustChangePin = member.pinHash === hashPin('1234')
+
     const token = await createSession({
       memberId: member.id,
       name: member.name,
       role: member.role,
     })
 
-    const response = NextResponse.json({ success: true, name: member.name, role: member.role })
+    const response = NextResponse.json({ success: true, name: member.name, role: member.role, mustChangePin })
     response.cookies.set(COOKIE_NAME, token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
