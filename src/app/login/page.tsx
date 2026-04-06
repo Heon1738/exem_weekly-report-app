@@ -15,6 +15,12 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [initializing, setInitializing] = useState(false)
 
+  // 첫 번째 팀장 계정 생성
+  const [firstName, setFirstName] = useState('')
+  const [firstPosition, setFirstPosition] = useState('')
+  const [firstDepartment, setFirstDepartment] = useState('')
+  const [registerLoading, setRegisterLoading] = useState(false)
+
   // PIN 변경 화면
   const [changingPin, setChangingPin] = useState(false)
   const [currentPin, setCurrentPin] = useState('')
@@ -42,6 +48,29 @@ export default function LoginPage() {
       }
     } catch {
       setAppState('not_initialized')
+    }
+  }
+
+  const handleRegisterFirst = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setRegisterLoading(true)
+    setError('')
+    try {
+      const res = await fetch('/api/auth/register-first', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: firstName, position: firstPosition, department: firstDepartment }),
+      })
+      if (res.ok) {
+        await checkStatus()
+      } else {
+        const data = await res.json()
+        setError(data.error || '계정 생성에 실패했습니다.')
+      }
+    } catch {
+      setError('계정 생성 중 오류가 발생했습니다.')
+    } finally {
+      setRegisterLoading(false)
     }
   }
 
@@ -174,7 +203,7 @@ export default function LoginPage() {
         {appState === 'not_initialized' && (
           <div className="card text-center space-y-3">
             <p className="text-sm font-medium text-notion-text">앱 초기 설정이 필요합니다</p>
-            <p className="text-xs text-notion-gray">Notion에 데이터베이스를 생성합니다.</p>
+            <p className="text-xs text-notion-gray">데이터베이스를 초기화합니다.</p>
             {error && <p className="text-sm text-red-500">{error}</p>}
             <button onClick={handleSetup} disabled={initializing} className="btn-primary w-full">
               {initializing ? '초기화 중...' : '앱 초기화'}
@@ -182,16 +211,35 @@ export default function LoginPage() {
           </div>
         )}
 
-        {/* 초기화됐지만 계정 없음 */}
+        {/* 초기화됐지만 계정 없음 — 첫 번째 팀장 계정 생성 */}
         {appState === 'no_members' && (
-          <div className="card text-center space-y-3">
-            <div className="text-3xl">🔒</div>
-            <p className="text-sm font-medium text-notion-text">등록된 계정이 없습니다</p>
-            <p className="text-sm text-notion-gray">
-              팀장이 환경설정에서 계정을 생성해야 로그인할 수 있습니다.<br />
-              팀장에게 계정 생성을 요청하세요.
-            </p>
-            <button onClick={checkStatus} className="btn-secondary w-full text-sm">새로고침</button>
+          <div className="card space-y-4">
+            <div className="text-center">
+              <div className="text-3xl mb-2">👤</div>
+              <p className="text-sm font-medium text-notion-text">첫 번째 팀장 계정을 생성하세요</p>
+              <p className="text-xs text-notion-gray mt-1">초기 패스워드는 1234이며, 로그인 후 변경할 수 있습니다.</p>
+            </div>
+            <form onSubmit={handleRegisterFirst} className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-notion-text mb-1.5">이름</label>
+                <input type="text" value={firstName} onChange={e => setFirstName(e.target.value)}
+                  placeholder="이름 입력" className="input-field" required />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-notion-text mb-1.5">직책</label>
+                <input type="text" value={firstPosition} onChange={e => setFirstPosition(e.target.value)}
+                  placeholder="예: 팀장, 수석 컨설턴트" className="input-field" required />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-notion-text mb-1.5">부서</label>
+                <input type="text" value={firstDepartment} onChange={e => setFirstDepartment(e.target.value)}
+                  placeholder="예: 기술지원팀" className="input-field" required />
+              </div>
+              {error && <p className="text-sm text-red-500">{error}</p>}
+              <button type="submit" disabled={registerLoading} className="btn-primary w-full">
+                {registerLoading ? '생성 중...' : '팀장 계정 생성'}
+              </button>
+            </form>
           </div>
         )}
 
