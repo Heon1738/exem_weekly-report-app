@@ -22,7 +22,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const { teamName, divisionName } = await request.json()
-  await updateAppSettings({ teamName, divisionName })
+  const { teamName, divisionName, weeklyDbId } = await request.json()
+  await updateAppSettings({ teamName, divisionName, weeklyDbId })
   return NextResponse.json({ success: true })
 }

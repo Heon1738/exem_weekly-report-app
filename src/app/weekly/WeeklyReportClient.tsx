@@ -322,11 +322,10 @@ export default function WeeklyReportClient({ session }: Props) {
                 <h2 className="text-sm font-semibold text-notion-text">5. DEQ 진행 상황</h2>
                 <button onClick={addS5} className="text-xs text-notion-blue hover:underline">+ 항목 추가</button>
               </div>
-              <p className="text-xs text-notion-gray mb-2">ex) 서울보증보험 락 발생 후 비정상 작동</p>
               <div className="space-y-2">
                 {draft.section5.map((item, i) => (
                   <div key={i} className="flex gap-2">
-                    <input value={item.description} onChange={e => updateS5(i, 'description', e.target.value)} placeholder="내용 (예: 서울보증보험 락 발생 후 비정상 작동)" className="input-field flex-1 text-sm" />
+                    <input value={item.description} onChange={e => updateS5(i, 'description', e.target.value)} placeholder="내용을 입력하세요" className="input-field flex-1 text-sm" />
                     <input value={item.link} onChange={e => updateS5(i, 'link', e.target.value)} placeholder="링크 (선택)" className="input-field w-40 text-sm" />
                     {draft.section5.length > 1 && <button onClick={() => removeS5(i)} className="text-red-400 hover:text-red-600 text-lg leading-none mt-1">×</button>}
                   </div>

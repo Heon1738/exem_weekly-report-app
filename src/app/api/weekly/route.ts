@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
   if (!settings) return NextResponse.json({ error: '설정 없음' }, { status: 500 })
 
   // 기존 초안 로드
-  const existing = await loadWeeklyDraft(weekStart, weekEnd, authorName)
+  const existing = await loadWeeklyDraft(weekStart, weekEnd, authorName, settings.weeklyDbId)
 
   // 이번 주 일일보고에서 하루 느낀점 집계 (팀 의견용)
   const dailyReports = await getDailyReports(settings.dailyDbId, authorName, weekStart, weekEnd)
@@ -81,6 +81,6 @@ export async function POST(request: NextRequest) {
   const draft = await request.json() as WeeklyDraft
   draft.authorName = session.name
 
-  const pageId = await saveWeeklyDraft(draft, member)
+  const pageId = await saveWeeklyDraft(draft, member, settings.weeklyDbId)
   return NextResponse.json({ success: true, pageId })
 }

@@ -10,7 +10,7 @@ export async function GET() {
       return NextResponse.json({ initialized: false, hasMembers: false })
     }
     const members = await getMembers(settings.membersDbId)
-    return NextResponse.json({ initialized: true, hasMembers: members.length > 0 })
+    return NextResponse.json({ initialized: true, hasMembers: members.length > 0, names: members.map(m => m.name) })
   } catch {
     return NextResponse.json({ initialized: false, hasMembers: false })
   }

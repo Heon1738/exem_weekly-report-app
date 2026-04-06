@@ -1,7 +1,6 @@
 // 팀원
 export interface Member {
   id: string
-  loginId: string    // 로그인용 아이디
   name: string
   position: string
   department: string
@@ -20,6 +19,7 @@ export interface AppSettings {
   dailyDbId: string
   membersDbId: string
   legendsDbId: string
+  weeklyDbId: string
   teamName: string
   divisionName: string
 }

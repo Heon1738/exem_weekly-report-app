@@ -8,7 +8,8 @@ type AppState = 'loading' | 'not_initialized' | 'no_members' | 'ready'
 export default function LoginPage() {
   const router = useRouter()
   const [appState, setAppState] = useState<AppState>('loading')
-  const [loginId, setLoginId] = useState('')
+  const [memberNames, setMemberNames] = useState<string[]>([])
+  const [selectedName, setSelectedName] = useState('')
   const [pin, setPin] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -31,7 +32,11 @@ export default function LoginPage() {
         const data = await res.json()
         if (!data.initialized) setAppState('not_initialized')
         else if (!data.hasMembers) setAppState('no_members')
-        else setAppState('ready')
+        else {
+          setMemberNames(data.names || [])
+          if (data.names?.length > 0) setSelectedName(data.names[0])
+          setAppState('ready')
+        }
       } else {
         setAppState('not_initialized')
       }
@@ -60,8 +65,8 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!loginId.trim() || !pin) {
-      setError('아이디와 패스워드를 입력해주세요.')
+    if (!selectedName || !pin) {
+      setError('이름과 패스워드를 입력해주세요.')
       return
     }
     setLoading(true)
@@ -70,7 +75,7 @@ export default function LoginPage() {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ loginId: loginId.trim(), pin }),
+        body: JSON.stringify({ name: selectedName, pin }),
       })
       const data = await res.json()
       if (res.ok) {
@@ -194,16 +199,17 @@ export default function LoginPage() {
         {appState === 'ready' && (
           <form onSubmit={handleLogin} className="card space-y-4">
             <div>
-              <label className="block text-sm font-medium text-notion-text mb-1.5">아이디</label>
-              <input
-                type="text"
-                value={loginId}
-                onChange={e => setLoginId(e.target.value)}
-                placeholder="아이디를 입력하세요"
+              <label className="block text-sm font-medium text-notion-text mb-1.5">이름</label>
+              <select
+                value={selectedName}
+                onChange={e => setSelectedName(e.target.value)}
                 className="input-field"
-                autoComplete="username"
                 required
-              />
+              >
+                {memberNames.map(name => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-notion-text mb-1.5">패스워드</label>

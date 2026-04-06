@@ -3,7 +3,6 @@ import type { Member, LegendItem, AppSettings, DailyReport, WeeklyDraft, Section
 
 const notion = new Client({ auth: process.env.NOTION_TOKEN })
 const PARENT_PAGE_ID = process.env.NOTION_PARENT_PAGE_ID!
-const WEEKLY_DB_ID = process.env.NOTION_WEEKLY_DB_ID!
 
 // ─────────────────────────────────────────────
 // 앱 설정 초기화
@@ -56,6 +55,7 @@ export async function initializeAppDatabases(): Promise<AppSettings> {
     dailyDbId: dailyDb.id,
     membersDbId: membersDb.id,
     legendsDbId: legendsDb.id,
+    weeklyDbId: process.env.NOTION_WEEKLY_DB_ID || '',
     teamName: '통합기술연구3팀',
     divisionName: '통합기술본부',
   }
@@ -95,7 +95,7 @@ export async function getAppSettings(): Promise<AppSettings | null> {
   } catch { return null }
 }
 
-export async function updateAppSettings(updates: Partial<Pick<AppSettings, 'teamName' | 'divisionName'>>): Promise<void> {
+export async function updateAppSettings(updates: Partial<Pick<AppSettings, 'teamName' | 'divisionName' | 'weeklyDbId'>>): Promise<void> {
   try {
     const blocks = await notion.blocks.children.list({ block_id: PARENT_PAGE_ID, page_size: 50 })
     for (const block of blocks.results) {
@@ -128,19 +128,6 @@ export async function updateAppSettings(updates: Partial<Pick<AppSettings, 'team
 // 팀원 관리
 // ─────────────────────────────────────────────
 
-// 기존 DB에 '아이디' 컬럼이 없으면 자동 추가 (마이그레이션)
-async function ensureLoginIdColumn(membersDbId: string): Promise<void> {
-  try {
-    const db = await notion.databases.retrieve({ database_id: membersDbId }) as any
-    if (!db.properties['아이디']) {
-      await notion.databases.update({
-        database_id: membersDbId,
-        properties: { '아이디': { rich_text: {} } },
-      } as any)
-    }
-  } catch {}
-}
-
 async function ensureCustomerNameColumn(dailyDbId: string): Promise<void> {
   try {
     const db = await notion.databases.retrieve({ database_id: dailyDbId }) as any
@@ -154,11 +141,9 @@ async function ensureCustomerNameColumn(dailyDbId: string): Promise<void> {
 }
 
 export async function getMembers(membersDbId: string): Promise<Member[]> {
-  await ensureLoginIdColumn(membersDbId)
   const res = await notion.databases.query({ database_id: membersDbId })
   return res.results.map((page: any) => ({
     id: page.id,
-    loginId: page.properties['아이디']?.rich_text?.[0]?.plain_text ?? '',
     name: page.properties['이름']?.title?.[0]?.plain_text ?? '',
     position: page.properties['직책']?.rich_text?.[0]?.plain_text ?? '',
     department: page.properties['소속']?.rich_text?.[0]?.plain_text ?? '',
@@ -172,7 +157,6 @@ export async function createMember(membersDbId: string, member: Omit<Member, 'id
     parent: { database_id: membersDbId },
     properties: {
       '이름': { title: [{ text: { content: member.name } }] },
-      '아이디': { rich_text: [{ text: { content: member.loginId || '' } }] },
       '직책': { rich_text: [{ text: { content: member.position } }] },
       '소속': { rich_text: [{ text: { content: member.department } }] },
       '역할': { select: { name: member.role } },
@@ -184,7 +168,6 @@ export async function createMember(membersDbId: string, member: Omit<Member, 'id
 
 export async function updateMember(memberId: string, member: Partial<Omit<Member, 'id'>>): Promise<void> {
   const props: Record<string, unknown> = {}
-  if (member.loginId !== undefined) props['아이디'] = { rich_text: [{ text: { content: member.loginId } }] }
   if (member.name !== undefined) props['이름'] = { title: [{ text: { content: member.name } }] }
   if (member.position !== undefined) props['직책'] = { rich_text: [{ text: { content: member.position } }] }
   if (member.department !== undefined) props['소속'] = { rich_text: [{ text: { content: member.department } }] }
@@ -295,8 +278,9 @@ export async function updateDailyReport(pageId: string, report: Partial<DailyRep
 // ─────────────────────────────────────────────
 
 // 주간보고 초안을 Notion 페이지 내 JSON 블록으로 저장
-export async function saveWeeklyDraft(draft: WeeklyDraft, member: Member): Promise<string> {
-  const existing = await findExistingWeeklyPage(draft.weekStart, draft.weekEnd, member.name)
+export async function saveWeeklyDraft(draft: WeeklyDraft, member: Member, weeklyDbId?: string): Promise<string> {
+  const dbId = weeklyDbId || process.env.NOTION_WEEKLY_DB_ID!
+  const existing = await findExistingWeeklyPage(draft.weekStart, draft.weekEnd, member.name, dbId)
 
   const metaJson = JSON.stringify({ __type: 'weekly_draft', ...draft })
 
@@ -329,7 +313,7 @@ export async function saveWeeklyDraft(draft: WeeklyDraft, member: Member): Promi
   // 새 페이지 생성
   const weekTitle = buildWeeklyTitle(new Date(draft.weekStart))
   const page = await notion.pages.create({
-    parent: { database_id: WEEKLY_DB_ID },
+    parent: { database_id: dbId },
     properties: {
       '주간보고서 (클릭)': { title: [{ text: { content: weekTitle } }] },
       '보고 기간': { date: { start: draft.weekStart, end: draft.weekEnd } },
@@ -341,8 +325,9 @@ export async function saveWeeklyDraft(draft: WeeklyDraft, member: Member): Promi
   return page.id
 }
 
-export async function loadWeeklyDraft(weekStart: string, weekEnd: string, authorName: string): Promise<WeeklyDraft | null> {
-  const pageId = await findExistingWeeklyPage(weekStart, weekEnd, authorName)
+export async function loadWeeklyDraft(weekStart: string, weekEnd: string, authorName: string, weeklyDbId?: string): Promise<WeeklyDraft | null> {
+  const dbId = weeklyDbId || process.env.NOTION_WEEKLY_DB_ID!
+  const pageId = await findExistingWeeklyPage(weekStart, weekEnd, authorName, dbId)
   if (!pageId) return null
 
   try {
@@ -387,8 +372,9 @@ export async function exportWeeklyToNotion(draft: WeeklyDraft, settings: AppSett
   ]
 
   const metaJson = JSON.stringify({ __type: 'weekly_draft', ...draft })
+  const dbId = settings.weeklyDbId || process.env.NOTION_WEEKLY_DB_ID!
 
-  const existing = await findExistingWeeklyPage(draft.weekStart, draft.weekEnd, member.name)
+  const existing = await findExistingWeeklyPage(draft.weekStart, draft.weekEnd, member.name, dbId)
 
   if (existing) {
     const blocks = await notion.blocks.children.list({ block_id: existing })
@@ -418,7 +404,7 @@ export async function exportWeeklyToNotion(draft: WeeklyDraft, settings: AppSett
   }
 
   const page = await notion.pages.create({
-    parent: { database_id: WEEKLY_DB_ID },
+    parent: { database_id: dbId },
     properties: {
       '주간보고서 (클릭)': { title: [{ text: { content: weekTitle } }] },
       '보고 기간': { date: { start: draft.weekStart, end: draft.weekEnd } },
@@ -437,10 +423,10 @@ export async function exportWeeklyToNotion(draft: WeeklyDraft, settings: AppSett
   return page.id
 }
 
-async function findExistingWeeklyPage(weekStart: string, weekEnd: string, authorName: string): Promise<string | null> {
+async function findExistingWeeklyPage(weekStart: string, weekEnd: string, authorName: string, dbId: string): Promise<string | null> {
   try {
     const res = await notion.databases.query({
-      database_id: WEEKLY_DB_ID,
+      database_id: dbId,
       filter: { and: [
         { property: '작성자', rich_text: { equals: authorName } },
         { property: '보고 기간', date: { on_or_after: weekStart } },

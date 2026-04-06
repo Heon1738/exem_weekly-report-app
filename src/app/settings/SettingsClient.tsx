@@ -6,7 +6,6 @@ import type { JwtPayload, LegendItem } from '@/types'
 
 interface MemberItem {
   id: string
-  loginId: string
   name: string
   position: string
   department: string
@@ -22,13 +21,13 @@ export default function SettingsClient({ session }: Props) {
 
   // 팀원
   const [members, setMembers] = useState<MemberItem[]>([])
-  const [newMember, setNewMember] = useState({ loginId: '', name: '', position: '', department: '', role: 'member' as 'leader' | 'member' })
+  const [newMember, setNewMember] = useState({ name: '', position: '', department: '', role: 'member' as 'leader' | 'member' })
   const [memberLoading, setMemberLoading] = useState(false)
   const [memberMsg, setMemberMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   // 인라인 편집
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState({ loginId: '', position: '', department: '', role: 'member' as 'leader' | 'member', pin: '' })
+  const [editForm, setEditForm] = useState({ position: '', department: '', role: 'member' as 'leader' | 'member', pin: '' })
   const [editLoading, setEditLoading] = useState(false)
   const [editMsg, setEditMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
@@ -42,6 +41,7 @@ export default function SettingsClient({ session }: Props) {
   const [settings, setSettings] = useState<Record<string, string>>({})
   const [teamName, setTeamName] = useState('')
   const [divisionName, setDivisionName] = useState('')
+  const [weeklyDbId, setWeeklyDbId] = useState('')
   const [orgSaving, setOrgSaving] = useState(false)
   const [orgMsg, setOrgMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
@@ -68,6 +68,7 @@ export default function SettingsClient({ session }: Props) {
       setSettings(data)
       setTeamName(data.teamName || '')
       setDivisionName(data.divisionName || '')
+      setWeeklyDbId(data.weeklyDbId || '')
     }
   }
 
@@ -79,7 +80,7 @@ export default function SettingsClient({ session }: Props) {
       const res = await fetch('/api/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teamName, divisionName }),
+        body: JSON.stringify({ teamName, divisionName, weeklyDbId }),
       })
       if (res.ok) {
         setOrgMsg({ type: 'success', text: '저장되었습니다.' })
@@ -106,7 +107,7 @@ export default function SettingsClient({ session }: Props) {
       })
       if (res.ok) {
         setMemberMsg({ type: 'success', text: '팀원이 추가되었습니다. 초기 패스워드는 1234입니다.' })
-        setNewMember({ loginId: '', name: '', position: '', department: '', role: 'member' })
+        setNewMember({ name: '', position: '', department: '', role: 'member' })
         await fetchMembers()
       } else {
         const data = await res.json()
@@ -121,7 +122,7 @@ export default function SettingsClient({ session }: Props) {
 
   const handleStartEdit = (member: MemberItem) => {
     setEditingId(member.id)
-    setEditForm({ loginId: member.loginId, position: member.position, department: member.department, role: member.role, pin: '' })
+    setEditForm({ position: member.position, department: member.department, role: member.role, pin: '' })
     setEditMsg(null)
   }
 
@@ -148,7 +149,6 @@ export default function SettingsClient({ session }: Props) {
     try {
       const body: Record<string, string> = {
         id,
-        loginId: editForm.loginId,
         position: editForm.position,
         department: editForm.department,
         role: editForm.role,
@@ -268,15 +268,6 @@ export default function SettingsClient({ session }: Props) {
                         /* 인라인 편집 폼 */
                         <div className="border border-notion-blue rounded-lg p-3 bg-notion-blue-bg space-y-3">
                           <p className="text-sm font-medium text-notion-text">{member.name} 수정</p>
-                          <div>
-                            <label className="block text-xs text-notion-gray mb-1">아이디 <span className="text-red-400">*</span></label>
-                            <input
-                              value={editForm.loginId}
-                              onChange={e => setEditForm(f => ({ ...f, loginId: e.target.value }))}
-                              className="input-field text-sm"
-                              placeholder="로그인 시 사용할 아이디"
-                            />
-                          </div>
                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <label className="block text-xs text-notion-gray mb-1">직책</label>
@@ -345,10 +336,9 @@ export default function SettingsClient({ session }: Props) {
                                 <span className="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded">팀장</span>
                               )}
                             </div>
-                            <p className="text-xs text-notion-gray mt-0.5">
-                              아이디: {member.loginId || <span className="text-red-400">미설정</span>}
-                              {member.department && ` · ${member.department}`}
-                            </p>
+                            {member.department && (
+                            <p className="text-xs text-notion-gray mt-0.5">{member.department}</p>
+                          )}
                           </div>
                           <div className="flex gap-2">
                             <button
@@ -379,27 +369,15 @@ export default function SettingsClient({ session }: Props) {
               <h2 className="text-sm font-semibold text-notion-text mb-1">팀원 추가</h2>
               <p className="text-xs text-notion-gray mb-3">초기 패스워드는 <strong>1234</strong>로 설정됩니다. 첫 로그인 시 변경이 강제됩니다.</p>
               <form onSubmit={handleAddMember} className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs text-notion-gray mb-1">아이디 *</label>
-                    <input
-                      value={newMember.loginId}
-                      onChange={e => setNewMember(p => ({ ...p, loginId: e.target.value }))}
-                      className="input-field"
-                      placeholder="로그인용 아이디"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-notion-gray mb-1">이름 *</label>
-                    <input
-                      value={newMember.name}
-                      onChange={e => setNewMember(p => ({ ...p, name: e.target.value }))}
-                      className="input-field"
-                      placeholder="홍길동"
-                      required
-                    />
-                  </div>
+                <div>
+                  <label className="block text-xs text-notion-gray mb-1">이름 *</label>
+                  <input
+                    value={newMember.name}
+                    onChange={e => setNewMember(p => ({ ...p, name: e.target.value }))}
+                    className="input-field"
+                    placeholder="홍길동"
+                    required
+                  />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -505,6 +483,17 @@ export default function SettingsClient({ session }: Props) {
                     className="input-field"
                     placeholder="예: 통합기술본부"
                   />
+                </div>
+                <div>
+                  <label className="block text-xs text-notion-gray mb-1">주간보고 추출 Notion DB ID</label>
+                  <input
+                    type="text"
+                    value={weeklyDbId}
+                    onChange={e => setWeeklyDbId(e.target.value)}
+                    className="input-field font-mono text-xs"
+                    placeholder="주간보고를 저장할 Notion DB ID"
+                  />
+                  <p className="text-xs text-notion-gray mt-1">주간보고서가 저장·추출될 Notion 데이터베이스 ID를 입력하세요.</p>
                 </div>
                 {orgMsg && (
                   <p className={`text-sm ${orgMsg.type === 'success' ? 'text-green-600' : 'text-red-500'}`}>{orgMsg.text}</p>

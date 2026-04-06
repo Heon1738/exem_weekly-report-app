@@ -48,12 +48,15 @@ export async function POST(request: NextRequest) {
 
   const sorted = dailyReports.sort((a, b) => a.date.localeCompare(b.date))
 
-  // Section 3: 고객사 지원 - 일일보고 고객사명 기반으로 직접 생성 (AI 불필요)
+  // Section 3: 고객사 지원 - 일일보고 고객사명 기반으로 직접 생성 (콤마로 여러 고객사 지원)
   const customerMap = new Map<string, string[]>()
   for (const r of sorted) {
     if (r.customerName) {
-      if (!customerMap.has(r.customerName)) customerMap.set(r.customerName, [])
-      if (r.memorableEvent) customerMap.get(r.customerName)!.push(r.memorableEvent)
+      const customers = r.customerName.split(',').map(c => c.trim()).filter(Boolean)
+      for (const customer of customers) {
+        if (!customerMap.has(customer)) customerMap.set(customer, [])
+        if (r.memorableEvent) customerMap.get(customer)!.push(r.memorableEvent)
+      }
     }
   }
   const section3 = customerMap.size > 0
@@ -104,6 +107,6 @@ ${allFeelings}
     mappedDates: dailyReports.map(r => r.date),
   }
 
-  await saveWeeklyDraft(draft, member)
+  await saveWeeklyDraft(draft, member, settings.weeklyDbId)
   return NextResponse.json({ success: true, weekStart, weekEnd })
 }
