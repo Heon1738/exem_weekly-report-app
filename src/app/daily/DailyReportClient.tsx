@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import type { JwtPayload, DailyReport } from '@/types'
 import { EMOTION_OPTIONS } from '@/types'
@@ -16,12 +17,30 @@ const emptyForm = (name: string): DailyReport => ({
   dailyFeeling: '',
 })
 
+function getWeekRange(dateStr: string) {
+  const d = new Date(dateStr)
+  const day = d.getDay()
+  const diff = day === 0 ? -6 : 1 - day
+  const mon = new Date(d); mon.setDate(d.getDate() + diff)
+  const fri = new Date(mon); fri.setDate(mon.getDate() + 4)
+  const fmt = (dt: Date) => dt.toISOString().split('T')[0]
+  return { weekStart: fmt(mon), weekEnd: fmt(fri) }
+}
+
 export default function DailyReportClient({ session }: Props) {
+  const router = useRouter()
   const [form, setForm] = useState<DailyReport>(emptyForm(session.name))
-  const [editingId, setEditingId] = useState<string | null>(null)  // null = 새 작성
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [recentReports, setRecentReports] = useState<DailyReport[]>([])
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [autoFilling, setAutoFilling] = useState(false)
+  const [weeklyGenerating, setWeeklyGenerating] = useState(false)
+
+  // 이번 주 일일보고 수 (버튼 표시용)
+  const today = new Date().toISOString().split('T')[0]
+  const { weekStart, weekEnd } = getWeekRange(today)
+  const thisWeekCount = recentReports.filter(r => r.date >= weekStart && r.date <= weekEnd).length
 
   useEffect(() => { fetchRecentReports() }, [])
 
@@ -31,8 +50,6 @@ export default function DailyReportClient({ session }: Props) {
       if (res.ok) setRecentReports(await res.json())
     } catch {}
   }
-
-  const [autoFilling, setAutoFilling] = useState(false)
 
   const handleAutoFill = async () => {
     if (!form.dailyFeeling.trim()) {
@@ -62,6 +79,34 @@ export default function DailyReportClient({ session }: Props) {
     }
   }
 
+  const handleGenerateWeekly = async () => {
+    if (thisWeekCount === 0) {
+      setMessage({ type: 'error', text: '이번 주 작성된 일일보고가 없습니다.' })
+      return
+    }
+    setWeeklyGenerating(true)
+    setMessage(null)
+    try {
+      const res = await fetch('/api/weekly/autofill', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: today }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setMessage({ type: 'success', text: `주간보고 초안이 생성되었습니다 (${data.weekStart} ~ ${data.weekEnd}). 주간보고 페이지로 이동합니다.` })
+        setTimeout(() => router.push('/weekly'), 1200)
+      } else {
+        const data = await res.json()
+        setMessage({ type: 'error', text: data.error || '주간보고 생성에 실패했습니다.' })
+      }
+    } catch {
+      setMessage({ type: 'error', text: '주간보고 생성 중 오류가 발생했습니다.' })
+    } finally {
+      setWeeklyGenerating(false)
+    }
+  }
+
   const handleSave = async () => {
     if (!form.dailyFeeling.trim()) {
       setMessage({ type: 'error', text: '하루 느낀점을 입력해주세요.' }); return
@@ -74,14 +119,12 @@ export default function DailyReportClient({ session }: Props) {
     try {
       let res
       if (editingId) {
-        // 수정
         res = await fetch(`/api/daily/${editingId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(form),
         })
       } else {
-        // 신규 저장
         res = await fetch('/api/daily', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -243,8 +286,29 @@ export default function DailyReportClient({ session }: Props) {
           </div>
         </div>
 
+        {/* 주간보고 자동생성 배너 */}
+        <div className="mt-8 p-4 rounded-lg border border-notion-border bg-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-notion-text">📊 이번 주 주간보고 자동생성</p>
+              <p className="text-xs text-notion-gray mt-0.5">
+                {thisWeekCount > 0
+                  ? `이번 주 일일보고 ${thisWeekCount}건을 바탕으로 주간보고를 자동으로 작성합니다.`
+                  : '이번 주 일일보고를 먼저 작성해주세요.'}
+              </p>
+            </div>
+            <button
+              onClick={handleGenerateWeekly}
+              disabled={weeklyGenerating || thisWeekCount === 0}
+              className="flex-shrink-0 ml-4 text-sm bg-notion-blue text-white px-3 py-2 rounded-md hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {weeklyGenerating ? 'AI 분석 중...' : '주간보고 생성'}
+            </button>
+          </div>
+        </div>
+
         {/* 최근 일일보고 목록 */}
-        <div className="mt-10">
+        <div className="mt-6">
           <h2 className="text-sm font-semibold text-notion-text mb-3">최근 일일보고</h2>
           {recentReports.length === 0 ? (
             <p className="text-sm text-notion-gray">작성된 일일보고가 없습니다.</p>
@@ -258,7 +322,12 @@ export default function DailyReportClient({ session }: Props) {
                   <div className="flex items-center gap-3">
                     <span className="text-xl">{r.emotion || '📝'}</span>
                     <div>
-                      <p className="text-sm font-medium text-notion-text">{r.date}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-notion-text">{r.date}</p>
+                        {r.date >= weekStart && r.date <= weekEnd && (
+                          <span className="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded">이번 주</span>
+                        )}
+                      </div>
                       <p className="text-xs text-notion-gray line-clamp-1 max-w-xs">
                         {r.dailyFeeling || '(내용 없음)'}
                       </p>

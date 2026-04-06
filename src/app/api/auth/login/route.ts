@@ -4,10 +4,10 @@ import { hashPin, createSession, COOKIE_NAME } from '@/lib/auth'
 
 export async function POST(request: NextRequest) {
   try {
-    const { name, pin } = await request.json()
+    const { loginId, pin } = await request.json()
 
-    if (!name || !pin) {
-      return NextResponse.json({ error: '이름과 PIN을 입력해주세요.' }, { status: 400 })
+    if (!loginId || !pin) {
+      return NextResponse.json({ error: '아이디와 PIN을 입력해주세요.' }, { status: 400 })
     }
 
     const settings = await getAppSettings()
@@ -16,10 +16,11 @@ export async function POST(request: NextRequest) {
     }
 
     const members = await getMembers(settings.membersDbId)
-    const member = members.find(m => m.name === name)
+    // loginId로 먼저 찾고, 없으면 name으로 폴백 (기존 계정 호환)
+    const member = members.find(m => m.loginId === loginId) ?? members.find(m => m.name === loginId)
 
     if (!member) {
-      return NextResponse.json({ error: '등록되지 않은 사용자입니다.' }, { status: 401 })
+      return NextResponse.json({ error: '등록되지 않은 아이디입니다.' }, { status: 401 })
     }
 
     const pinHash = hashPin(pin)

@@ -5,13 +5,13 @@ import { useRouter } from 'next/navigation'
 
 export default function LoginPage() {
   const router = useRouter()
-  const [members, setMembers] = useState<string[]>([])
-  const [selectedName, setSelectedName] = useState('')
+  const [loginId, setLoginId] = useState('')
   const [pin, setPin] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [initializing, setInitializing] = useState(false)
   const [setupDone, setSetupDone] = useState(false)
+  const [hasMembers, setHasMembers] = useState<boolean | null>(null)
 
   // PIN 변경 화면 상태
   const [changingPin, setChangingPin] = useState(false)
@@ -21,17 +21,21 @@ export default function LoginPage() {
   const [pinChangeLoading, setPinChangeLoading] = useState(false)
 
   useEffect(() => {
-    fetchMembers()
+    checkMembers()
   }, [])
 
-  const fetchMembers = async () => {
+  const checkMembers = async () => {
     try {
       const res = await fetch('/api/auth/members')
       if (res.ok) {
         const data = await res.json()
-        setMembers(data)
+        setHasMembers(data.length > 0)
+      } else {
+        setHasMembers(false)
       }
-    } catch {}
+    } catch {
+      setHasMembers(false)
+    }
   }
 
   const handleSetup = async () => {
@@ -41,7 +45,7 @@ export default function LoginPage() {
       const res = await fetch('/api/setup', { method: 'POST' })
       if (res.ok) {
         setSetupDone(true)
-        await fetchMembers()
+        await checkMembers()
       } else {
         const data = await res.json()
         setError(data.error || '초기화에 실패했습니다.')
@@ -55,8 +59,8 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedName || !pin) {
-      setError('이름과 PIN을 입력해주세요.')
+    if (!loginId.trim() || !pin) {
+      setError('아이디와 PIN을 입력해주세요.')
       return
     }
 
@@ -67,7 +71,7 @@ export default function LoginPage() {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: selectedName, pin }),
+        body: JSON.stringify({ loginId: loginId.trim(), pin }),
       })
       const data = await res.json()
 
@@ -75,6 +79,7 @@ export default function LoginPage() {
         if (data.mustChangePin) {
           // 초기 PIN(1234) → 변경 화면으로
           setCurrentPin(pin)
+          setLoginId('')
           setChangingPin(true)
           setPin('')
           setError('')
@@ -127,7 +132,7 @@ export default function LoginPage() {
     }
   }
 
-  const showLoginForm = members.length > 0
+  const showLoginForm = hasMembers === true || setupDone
 
   // PIN 변경 화면
   if (changingPin) {
@@ -186,7 +191,7 @@ export default function LoginPage() {
           <p className="text-sm text-notion-gray mt-1">팀 일일보고 &amp; 주간보고</p>
         </div>
 
-        {!showLoginForm && !setupDone && (
+        {hasMembers === false && !setupDone && (
           <div className="card text-center space-y-3">
             <p className="text-sm text-notion-gray">
               앱 초기 설정이 필요합니다.<br />
@@ -203,31 +208,27 @@ export default function LoginPage() {
           </div>
         )}
 
-        {!showLoginForm && setupDone && (
+        {hasMembers === false && setupDone && (
           <div className="card text-center space-y-3">
             <p className="text-sm text-green-600 font-medium">✓ 초기화 완료!</p>
-            <p className="text-sm text-notion-gray">팀원 목록을 불러오는 중...</p>
-            <button onClick={fetchMembers} className="btn-secondary w-full text-sm">
-              새로고침
-            </button>
+            <p className="text-sm text-notion-gray">아이디를 설정한 후 로그인하세요.</p>
+            <button onClick={checkMembers} className="btn-secondary w-full text-sm">새로고침</button>
           </div>
         )}
 
         {showLoginForm && (
           <form onSubmit={handleLogin} className="card space-y-4">
             <div>
-              <label className="block text-sm font-medium text-notion-text mb-1.5">이름 선택</label>
-              <select
-                value={selectedName}
-                onChange={e => setSelectedName(e.target.value)}
+              <label className="block text-sm font-medium text-notion-text mb-1.5">아이디</label>
+              <input
+                type="text"
+                value={loginId}
+                onChange={e => setLoginId(e.target.value)}
+                placeholder="아이디를 입력하세요"
                 className="input-field"
+                autoComplete="username"
                 required
-              >
-                <option value="">-- 이름을 선택하세요 --</option>
-                {members.map(name => (
-                  <option key={name} value={name}>{name}</option>
-                ))}
-              </select>
+              />
             </div>
 
             <div>

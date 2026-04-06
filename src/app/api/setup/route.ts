@@ -8,6 +8,7 @@ export async function POST() {
 
     // 기본 팀장 계정 생성 (김종헌 과장)
     await createMember(settings.membersDbId, {
+      loginId: 'kjh',
       name: '김종헌',
       position: '과장',
       department: '통합기술본부 > 통합기술연구3팀',

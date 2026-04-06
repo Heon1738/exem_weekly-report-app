@@ -26,15 +26,20 @@ export async function POST(request: NextRequest) {
   const settings = await getAppSettings()
   if (!settings) return NextResponse.json({ error: '설정 없음' }, { status: 500 })
 
-  const { name, position, department, role, pin } = await request.json()
+  const { loginId, name, position, department, role } = await request.json()
 
-  if (!name || !pin) {
-    return NextResponse.json({ error: '이름과 PIN은 필수입니다.' }, { status: 400 })
+  if (!loginId || !name) {
+    return NextResponse.json({ error: '아이디와 이름은 필수입니다.' }, { status: 400 })
+  }
+
+  // 아이디 중복 확인
+  const existingMembers = await getMembers(settings.membersDbId)
+  if (existingMembers.some(m => m.loginId === loginId)) {
+    return NextResponse.json({ error: '이미 사용 중인 아이디입니다.' }, { status: 400 })
   }
 
   // 팀장은 1명만 허용
   if (role === 'leader') {
-    const existingMembers = await getMembers(settings.membersDbId)
     const alreadyHasLeader = existingMembers.some(m => m.role === 'leader')
     if (alreadyHasLeader) {
       return NextResponse.json({ error: '팀장은 1명만 설정할 수 있습니다. 기존 팀장을 먼저 팀원으로 변경해주세요.' }, { status: 400 })
@@ -42,6 +47,7 @@ export async function POST(request: NextRequest) {
   }
 
   const member = await createMember(settings.membersDbId, {
+    loginId,
     name,
     position: position || '',
     department: department || '',
@@ -58,10 +64,11 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const { id, name, position, department, role, pin } = await request.json()
+  const { id, loginId, name, position, department, role, pin } = await request.json()
   if (!id) return NextResponse.json({ error: 'ID가 필요합니다.' }, { status: 400 })
 
   const updates: Record<string, string> = {}
+  if (loginId !== undefined) updates.loginId = loginId
   if (name !== undefined) updates.name = name
   if (position !== undefined) updates.position = position
   if (department !== undefined) updates.department = department

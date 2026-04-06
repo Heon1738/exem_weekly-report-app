@@ -127,10 +127,26 @@ export async function updateAppSettings(updates: Partial<Pick<AppSettings, 'team
 // ─────────────────────────────────────────────
 // 팀원 관리
 // ─────────────────────────────────────────────
+
+// 기존 DB에 '아이디' 컬럼이 없으면 자동 추가 (마이그레이션)
+async function ensureLoginIdColumn(membersDbId: string): Promise<void> {
+  try {
+    const db = await notion.databases.retrieve({ database_id: membersDbId }) as any
+    if (!db.properties['아이디']) {
+      await notion.databases.update({
+        database_id: membersDbId,
+        properties: { '아이디': { rich_text: {} } },
+      } as any)
+    }
+  } catch {}
+}
+
 export async function getMembers(membersDbId: string): Promise<Member[]> {
+  await ensureLoginIdColumn(membersDbId)
   const res = await notion.databases.query({ database_id: membersDbId })
   return res.results.map((page: any) => ({
     id: page.id,
+    loginId: page.properties['아이디']?.rich_text?.[0]?.plain_text ?? '',
     name: page.properties['이름']?.title?.[0]?.plain_text ?? '',
     position: page.properties['직책']?.rich_text?.[0]?.plain_text ?? '',
     department: page.properties['소속']?.rich_text?.[0]?.plain_text ?? '',
@@ -144,6 +160,7 @@ export async function createMember(membersDbId: string, member: Omit<Member, 'id
     parent: { database_id: membersDbId },
     properties: {
       '이름': { title: [{ text: { content: member.name } }] },
+      '아이디': { rich_text: [{ text: { content: member.loginId || '' } }] },
       '직책': { rich_text: [{ text: { content: member.position } }] },
       '소속': { rich_text: [{ text: { content: member.department } }] },
       '역할': { select: { name: member.role } },
@@ -155,6 +172,7 @@ export async function createMember(membersDbId: string, member: Omit<Member, 'id
 
 export async function updateMember(memberId: string, member: Partial<Omit<Member, 'id'>>): Promise<void> {
   const props: Record<string, unknown> = {}
+  if (member.loginId !== undefined) props['아이디'] = { rich_text: [{ text: { content: member.loginId } }] }
   if (member.name !== undefined) props['이름'] = { title: [{ text: { content: member.name } }] }
   if (member.position !== undefined) props['직책'] = { rich_text: [{ text: { content: member.position } }] }
   if (member.department !== undefined) props['소속'] = { rich_text: [{ text: { content: member.department } }] }
