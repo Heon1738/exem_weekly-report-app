@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAppSettings, getMembers } from '@/lib/notion'
+import { getMembers } from '@/lib/db'
 import { hashPin, createSession, COOKIE_NAME } from '@/lib/auth'
 
 export async function POST(request: NextRequest) {
@@ -10,12 +10,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '이름과 패스워드를 입력해주세요.' }, { status: 400 })
     }
 
-    const settings = await getAppSettings()
-    if (!settings) {
-      return NextResponse.json({ error: '앱 초기 설정이 필요합니다. /api/setup을 먼저 실행해주세요.' }, { status: 500 })
-    }
-
-    const members = await getMembers(settings.membersDbId)
+    const members = await getMembers()
     const member = members.find(m => m.name === name)
 
     if (!member) {
@@ -27,7 +22,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '패스워드가 올바르지 않습니다.' }, { status: 401 })
     }
 
-    // 초기 PIN(1234) 사용 중이면 변경 강제
     const mustChangePin = member.pinHash === hashPin('1234')
 
     const token = await createSession({
@@ -41,7 +35,7 @@ export async function POST(request: NextRequest) {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 7, // 7일
+      maxAge: 60 * 60 * 24 * 7,
       path: '/',
     })
 

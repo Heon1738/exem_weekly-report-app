@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSessionFromCookies } from '@/lib/auth'
-import { getAppSettings, updateAppSettings } from '@/lib/notion'
+import { getAppSettings, updateAppSettings } from '@/lib/db'
 
 export async function GET() {
   const session = await getSessionFromCookies()
@@ -8,10 +8,6 @@ export async function GET() {
 
   const settings = await getAppSettings()
   if (!settings) return NextResponse.json({ error: '설정 없음' }, { status: 500 })
-
-  if (session.role !== 'leader') {
-    return NextResponse.json({ teamName: settings.teamName, divisionName: settings.divisionName })
-  }
 
   return NextResponse.json(settings)
 }
@@ -22,7 +18,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const { teamName, divisionName, weeklyDbId } = await request.json()
-  await updateAppSettings({ teamName, divisionName, weeklyDbId })
+  const { teamName, divisionName, notionExportDbId } = await request.json()
+  await updateAppSettings({ teamName, divisionName, notionExportDbId })
   return NextResponse.json({ success: true })
 }

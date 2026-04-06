@@ -41,7 +41,7 @@ export default function SettingsClient({ session }: Props) {
   const [settings, setSettings] = useState<Record<string, string>>({})
   const [teamName, setTeamName] = useState('')
   const [divisionName, setDivisionName] = useState('')
-  const [weeklyDbId, setWeeklyDbId] = useState('')
+  const [notionExportDbId, setNotionExportDbId] = useState('')
   const [orgSaving, setOrgSaving] = useState(false)
   const [orgMsg, setOrgMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
@@ -68,7 +68,7 @@ export default function SettingsClient({ session }: Props) {
       setSettings(data)
       setTeamName(data.teamName || '')
       setDivisionName(data.divisionName || '')
-      setWeeklyDbId(data.weeklyDbId || '')
+      setNotionExportDbId(data.notionExportDbId || '')
     }
   }
 
@@ -80,7 +80,7 @@ export default function SettingsClient({ session }: Props) {
       const res = await fetch('/api/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teamName, divisionName, weeklyDbId }),
+        body: JSON.stringify({ teamName, divisionName, notionExportDbId }),
       })
       if (res.ok) {
         setOrgMsg({ type: 'success', text: '저장되었습니다.' })
@@ -485,15 +485,15 @@ export default function SettingsClient({ session }: Props) {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-notion-gray mb-1">주간보고 추출 Notion DB ID</label>
+                  <label className="block text-xs text-notion-gray mb-1">Notion 내보내기 DB ID <span className="text-notion-gray font-normal">(선택)</span></label>
                   <input
                     type="text"
-                    value={weeklyDbId}
-                    onChange={e => setWeeklyDbId(e.target.value)}
+                    value={notionExportDbId}
+                    onChange={e => setNotionExportDbId(e.target.value)}
                     className="input-field font-mono text-xs"
-                    placeholder="주간보고를 저장할 Notion DB ID"
+                    placeholder="Notion으로 내보낼 때 사용할 DB ID"
                   />
-                  <p className="text-xs text-notion-gray mt-1">주간보고서가 저장·추출될 Notion 데이터베이스 ID를 입력하세요.</p>
+                  <p className="text-xs text-notion-gray mt-1">주간보고를 Notion으로 내보낼 때 사용할 대상 DB ID입니다. 비워두면 Notion 내보내기 기능을 사용할 수 없습니다.</p>
                 </div>
                 {orgMsg && (
                   <p className={`text-sm ${orgMsg.type === 'success' ? 'text-green-600' : 'text-red-500'}`}>{orgMsg.text}</p>
@@ -504,30 +504,9 @@ export default function SettingsClient({ session }: Props) {
               </form>
             </div>
 
-            <div className="card">
-              <h2 className="text-sm font-semibold text-notion-text mb-3">Notion DB 정보</h2>
-              <div className="space-y-3">
-                {[
-                  { label: '일일보고 DB ID', key: 'dailyDbId' },
-                  { label: '팀원 설정 DB ID', key: 'membersDbId' },
-                  { label: '범례 설정 DB ID', key: 'legendsDbId' },
-                ].map(({ label, key }) => (
-                  <div key={key}>
-                    <label className="block text-xs text-notion-gray mb-1">{label}</label>
-                    <input
-                      type="text"
-                      value={settings[key] || ''}
-                      readOnly
-                      className="input-field bg-notion-gray-bg font-mono text-xs cursor-not-allowed"
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-
             <div className="card bg-notion-yellow-bg border-yellow-200">
               <p className="text-sm text-yellow-800">
-                <strong>참고:</strong> DB ID 및 Notion 토큰은 Vercel 환경 변수 또는 <code className="bg-yellow-100 px-1 rounded">.env.local</code>에서 설정합니다.
+                <strong>참고:</strong> Notion 내보내기를 사용하려면 Notion 토큰을 Vercel 환경 변수 또는 <code className="bg-yellow-100 px-1 rounded">.env.local</code>에서 설정하거나, <a href="/notion-setup" className="underline">Notion 연동 설정</a>에서 구성하세요.
               </p>
             </div>
           </div>

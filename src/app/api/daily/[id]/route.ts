@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSessionFromCookies } from '@/lib/auth'
-import { getDailyReport, updateDailyReport } from '@/lib/notion'
+import { getDailyReport, updateDailyReport } from '@/lib/db'
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const session = await getSessionFromCookies()
@@ -9,7 +9,6 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
   const report = await getDailyReport(params.id)
   if (!report) return NextResponse.json({ error: '보고서를 찾을 수 없습니다.' }, { status: 404 })
 
-  // 팀원은 본인 보고서만 수정 가능
   if (session.role !== 'leader' && report.authorName !== session.name) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }

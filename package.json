@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
+    "@neondatabase/serverless": "^1.0.2",
     "@notionhq/client": "^2.2.15",
     "date-fns": "^3.6.0",
     "jose": "^5.6.3",

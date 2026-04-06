@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSessionFromCookies } from '@/lib/auth'
-import { getAppSettings, getMembers, createMember, updateMember, deleteMember } from '@/lib/notion'
+import { getMembers, createMember, updateMember, deleteMember } from '@/lib/db'
 import { hashPin } from '@/lib/auth'
 
 export async function GET() {
@@ -8,12 +8,7 @@ export async function GET() {
   if (!session || session.role !== 'leader') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
-
-  const settings = await getAppSettings()
-  if (!settings) return NextResponse.json({ error: '설정 없음' }, { status: 500 })
-
-  const members = await getMembers(settings.membersDbId)
-  // PIN 해시는 노출하지 않음
+  const members = await getMembers()
   return NextResponse.json(members.map(m => ({ ...m, pinHash: undefined })))
 }
 
@@ -23,22 +18,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const settings = await getAppSettings()
-  if (!settings) return NextResponse.json({ error: '설정 없음' }, { status: 500 })
-
   const { name, position, department, role } = await request.json()
 
   if (!name) {
     return NextResponse.json({ error: '이름은 필수입니다.' }, { status: 400 })
   }
 
-  // 이름 중복 확인
-  const existingMembers = await getMembers(settings.membersDbId)
+  const existingMembers = await getMembers()
   if (existingMembers.some(m => m.name === name)) {
     return NextResponse.json({ error: '이미 등록된 이름입니다.' }, { status: 400 })
   }
 
-  // 팀장은 1명만 허용
   if (role === 'leader') {
     const alreadyHasLeader = existingMembers.some(m => m.role === 'leader')
     if (alreadyHasLeader) {
@@ -46,12 +36,12 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const member = await createMember(settings.membersDbId, {
+  const member = await createMember({
     name,
     position: position || '',
     department: department || '',
     role: role || 'member',
-    pinHash: hashPin('1234'),  // 초기 PIN은 항상 1234
+    pinHash: hashPin('1234'),
   })
 
   return NextResponse.json({ success: true, id: member.id })

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSessionFromCookies, hashPin } from '@/lib/auth'
-import { getAppSettings, getMembers, updateMember } from '@/lib/notion'
+import { getMembers, updateMember } from '@/lib/db'
 
 export async function POST(request: NextRequest) {
   const session = await getSessionFromCookies()
@@ -18,10 +18,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: '1234는 사용할 수 없습니다.' }, { status: 400 })
   }
 
-  const settings = await getAppSettings()
-  if (!settings) return NextResponse.json({ error: '설정 없음' }, { status: 500 })
-
-  const members = await getMembers(settings.membersDbId)
+  const members = await getMembers()
   const member = members.find(m => m.name === session.name)
   if (!member) return NextResponse.json({ error: '팀원 정보를 찾을 수 없습니다.' }, { status: 404 })
 

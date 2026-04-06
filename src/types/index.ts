@@ -16,12 +16,9 @@ export interface LegendItem {
 
 // 앱 설정
 export interface AppSettings {
-  dailyDbId: string
-  membersDbId: string
-  legendsDbId: string
-  weeklyDbId: string
   teamName: string
   divisionName: string
+  notionExportDbId: string  // Notion 내보내기용 DB ID (선택)
 }
 
 // 일일보고 (간소화 - 개인 회고만)

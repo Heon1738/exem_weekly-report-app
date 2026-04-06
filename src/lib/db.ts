@@ -1,0 +1,271 @@
+import { neon } from '@neondatabase/serverless'
+import type { Member, LegendItem, AppSettings, DailyReport, WeeklyDraft } from '@/types'
+
+const sql = neon(process.env.DATABASE_URL!)
+
+// ─────────────────────────────────────────────
+// 스키마 초기화
+// ─────────────────────────────────────────────
+export async function initSchema(): Promise<void> {
+  await sql`
+    CREATE TABLE IF NOT EXISTS app_settings (
+      id SERIAL PRIMARY KEY,
+      team_name TEXT NOT NULL DEFAULT '통합기술연구3팀',
+      division_name TEXT NOT NULL DEFAULT '통합기술본부',
+      notion_export_db_id TEXT NOT NULL DEFAULT ''
+    )
+  `
+  await sql`
+    CREATE TABLE IF NOT EXISTS members (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+      name TEXT NOT NULL UNIQUE,
+      position TEXT NOT NULL DEFAULT '',
+      department TEXT NOT NULL DEFAULT '',
+      role TEXT NOT NULL DEFAULT 'member',
+      pin_hash TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `
+  await sql`
+    CREATE TABLE IF NOT EXISTS legends (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+      label TEXT NOT NULL,
+      display_order INTEGER DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `
+  await sql`
+    CREATE TABLE IF NOT EXISTS daily_reports (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+      date DATE NOT NULL,
+      author_name TEXT NOT NULL,
+      customer_name TEXT NOT NULL DEFAULT '',
+      emotion TEXT NOT NULL DEFAULT '',
+      memorable_event TEXT NOT NULL DEFAULT '',
+      hard_thing TEXT NOT NULL DEFAULT '',
+      daily_feeling TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(date, author_name)
+    )
+  `
+  await sql`
+    CREATE TABLE IF NOT EXISTS weekly_drafts (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+      week_start DATE NOT NULL,
+      week_end DATE NOT NULL,
+      author_name TEXT NOT NULL,
+      draft_data JSONB NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(week_start, author_name)
+    )
+  `
+
+  // 기본 범례 (없을 때만)
+  const [{ cnt: legendCnt }] = await sql`SELECT COUNT(*)::int as cnt FROM legends`
+  if (Number(legendCnt) === 0) {
+    const defaults = ['DB 점검', '장애 대응', '컨설팅 지원', 'PoC 지원', '설치/구축']
+    for (let i = 0; i < defaults.length; i++) {
+      await sql`INSERT INTO legends (label, display_order) VALUES (${defaults[i]}, ${i})`
+    }
+  }
+
+  // 기본 앱 설정 (없을 때만)
+  const [{ cnt: settingsCnt }] = await sql`SELECT COUNT(*)::int as cnt FROM app_settings`
+  if (Number(settingsCnt) === 0) {
+    await sql`INSERT INTO app_settings (team_name, division_name, notion_export_db_id) VALUES ('통합기술연구3팀', '통합기술본부', '')`
+  }
+}
+
+// ─────────────────────────────────────────────
+// 앱 설정
+// ─────────────────────────────────────────────
+export async function getAppSettings(): Promise<AppSettings | null> {
+  try {
+    const rows = await sql`SELECT team_name, division_name, notion_export_db_id FROM app_settings LIMIT 1`
+    if (!rows.length) return null
+    const r = rows[0]
+    return {
+      teamName: r.team_name,
+      divisionName: r.division_name,
+      notionExportDbId: r.notion_export_db_id,
+    }
+  } catch { return null }
+}
+
+export async function updateAppSettings(updates: Partial<Pick<AppSettings, 'teamName' | 'divisionName' | 'notionExportDbId'>>): Promise<void> {
+  const current = await getAppSettings()
+  if (!current) return
+  const merged = { ...current, ...updates }
+  await sql`
+    UPDATE app_settings
+    SET team_name=${merged.teamName},
+        division_name=${merged.divisionName},
+        notion_export_db_id=${merged.notionExportDbId}
+    WHERE id=(SELECT id FROM app_settings LIMIT 1)
+  `
+}
+
+// ─────────────────────────────────────────────
+// 팀원 관리
+// ─────────────────────────────────────────────
+export async function getMembers(): Promise<Member[]> {
+  const rows = await sql`SELECT id, name, position, department, role, pin_hash FROM members ORDER BY created_at`
+  return rows.map(r => ({
+    id: r.id,
+    name: r.name,
+    position: r.position,
+    department: r.department,
+    role: r.role as 'leader' | 'member',
+    pinHash: r.pin_hash,
+  }))
+}
+
+export async function createMember(member: Omit<Member, 'id'>): Promise<Member> {
+  const [row] = await sql`
+    INSERT INTO members (name, position, department, role, pin_hash)
+    VALUES (${member.name}, ${member.position}, ${member.department}, ${member.role}, ${member.pinHash})
+    RETURNING id
+  `
+  return { ...member, id: row.id }
+}
+
+export async function updateMember(memberId: string, member: Partial<Omit<Member, 'id'>>): Promise<void> {
+  if (member.name !== undefined) await sql`UPDATE members SET name=${member.name} WHERE id=${memberId}`
+  if (member.position !== undefined) await sql`UPDATE members SET position=${member.position} WHERE id=${memberId}`
+  if (member.department !== undefined) await sql`UPDATE members SET department=${member.department} WHERE id=${memberId}`
+  if (member.role !== undefined) await sql`UPDATE members SET role=${member.role} WHERE id=${memberId}`
+  if (member.pinHash !== undefined) await sql`UPDATE members SET pin_hash=${member.pinHash} WHERE id=${memberId}`
+}
+
+export async function deleteMember(memberId: string): Promise<void> {
+  await sql`DELETE FROM members WHERE id=${memberId}`
+}
+
+// ─────────────────────────────────────────────
+// 범례 관리
+// ─────────────────────────────────────────────
+export async function getLegends(): Promise<LegendItem[]> {
+  const rows = await sql`SELECT id, label FROM legends ORDER BY display_order, created_at`
+  return rows.map(r => ({ id: r.id, label: r.label }))
+}
+
+export async function createLegend(label: string): Promise<LegendItem> {
+  const [row] = await sql`INSERT INTO legends (label) VALUES (${label}) RETURNING id`
+  return { id: row.id, label }
+}
+
+export async function deleteLegend(legendId: string): Promise<void> {
+  await sql`DELETE FROM legends WHERE id=${legendId}`
+}
+
+// ─────────────────────────────────────────────
+// 일일보고 CRUD
+// ─────────────────────────────────────────────
+export async function getDailyReports(authorName: string, weekStart?: string, weekEnd?: string): Promise<DailyReport[]> {
+  let rows
+  if (weekStart && weekEnd) {
+    rows = await sql`
+      SELECT id, date::text, author_name, customer_name, emotion, memorable_event, hard_thing, daily_feeling
+      FROM daily_reports
+      WHERE author_name=${authorName} AND date >= ${weekStart}::date AND date <= ${weekEnd}::date
+      ORDER BY date DESC
+    `
+  } else if (weekStart) {
+    rows = await sql`
+      SELECT id, date::text, author_name, customer_name, emotion, memorable_event, hard_thing, daily_feeling
+      FROM daily_reports
+      WHERE author_name=${authorName} AND date >= ${weekStart}::date
+      ORDER BY date DESC
+    `
+  } else {
+    rows = await sql`
+      SELECT id, date::text, author_name, customer_name, emotion, memorable_event, hard_thing, daily_feeling
+      FROM daily_reports
+      WHERE author_name=${authorName}
+      ORDER BY date DESC
+    `
+  }
+  return rows.map(r => ({
+    id: r.id,
+    date: r.date.slice(0, 10),
+    authorName: r.author_name,
+    customerName: r.customer_name,
+    emotion: r.emotion,
+    memorableEvent: r.memorable_event,
+    hardThing: r.hard_thing,
+    dailyFeeling: r.daily_feeling,
+  }))
+}
+
+export async function getDailyReport(reportId: string): Promise<DailyReport | null> {
+  try {
+    const rows = await sql`
+      SELECT id, date::text, author_name, customer_name, emotion, memorable_event, hard_thing, daily_feeling
+      FROM daily_reports WHERE id=${reportId}
+    `
+    if (!rows.length) return null
+    const r = rows[0]
+    return {
+      id: r.id,
+      date: r.date.slice(0, 10),
+      authorName: r.author_name,
+      customerName: r.customer_name,
+      emotion: r.emotion,
+      memorableEvent: r.memorable_event,
+      hardThing: r.hard_thing,
+      dailyFeeling: r.daily_feeling,
+    }
+  } catch { return null }
+}
+
+export async function createDailyReport(report: DailyReport): Promise<string> {
+  const [row] = await sql`
+    INSERT INTO daily_reports (date, author_name, customer_name, emotion, memorable_event, hard_thing, daily_feeling)
+    VALUES (${report.date}::date, ${report.authorName}, ${report.customerName || ''}, ${report.emotion || ''}, ${report.memorableEvent || ''}, ${report.hardThing || ''}, ${report.dailyFeeling || ''})
+    ON CONFLICT (date, author_name) DO UPDATE SET
+      customer_name=EXCLUDED.customer_name,
+      emotion=EXCLUDED.emotion,
+      memorable_event=EXCLUDED.memorable_event,
+      hard_thing=EXCLUDED.hard_thing,
+      daily_feeling=EXCLUDED.daily_feeling,
+      updated_at=NOW()
+    RETURNING id
+  `
+  return row.id
+}
+
+export async function updateDailyReport(reportId: string, report: Partial<DailyReport>): Promise<void> {
+  if (report.emotion !== undefined) await sql`UPDATE daily_reports SET emotion=${report.emotion}, updated_at=NOW() WHERE id=${reportId}`
+  if (report.memorableEvent !== undefined) await sql`UPDATE daily_reports SET memorable_event=${report.memorableEvent}, updated_at=NOW() WHERE id=${reportId}`
+  if (report.hardThing !== undefined) await sql`UPDATE daily_reports SET hard_thing=${report.hardThing}, updated_at=NOW() WHERE id=${reportId}`
+  if (report.dailyFeeling !== undefined) await sql`UPDATE daily_reports SET daily_feeling=${report.dailyFeeling}, updated_at=NOW() WHERE id=${reportId}`
+  if (report.customerName !== undefined) await sql`UPDATE daily_reports SET customer_name=${report.customerName}, updated_at=NOW() WHERE id=${reportId}`
+}
+
+// ─────────────────────────────────────────────
+// 주간보고 초안 저장/로드
+// ─────────────────────────────────────────────
+export async function saveWeeklyDraft(draft: WeeklyDraft): Promise<string> {
+  const [row] = await sql`
+    INSERT INTO weekly_drafts (week_start, week_end, author_name, draft_data)
+    VALUES (${draft.weekStart}::date, ${draft.weekEnd}::date, ${draft.authorName}, ${JSON.stringify(draft)}::jsonb)
+    ON CONFLICT (week_start, author_name) DO UPDATE SET
+      draft_data=${JSON.stringify(draft)}::jsonb,
+      updated_at=NOW()
+    RETURNING id
+  `
+  return row.id
+}
+
+export async function loadWeeklyDraft(weekStart: string, weekEnd: string, authorName: string): Promise<WeeklyDraft | null> {
+  try {
+    const rows = await sql`
+      SELECT draft_data FROM weekly_drafts
+      WHERE week_start=${weekStart}::date AND author_name=${authorName}
+    `
+    if (!rows.length) return null
+    return rows[0].draft_data as WeeklyDraft
+  } catch { return null }
+}

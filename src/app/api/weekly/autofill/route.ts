@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSessionFromCookies } from '@/lib/auth'
-import { getAppSettings, getDailyReports, saveWeeklyDraft, getMembers } from '@/lib/notion'
+import { getAppSettings, getDailyReports, saveWeeklyDraft, getMembers } from '@/lib/db'
 import type { WeeklyDraft } from '@/types'
 
 function getWeekRange(dateStr: string) {
@@ -34,14 +34,11 @@ export async function POST(request: NextRequest) {
   const session = await getSessionFromCookies()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const settings = await getAppSettings()
-  if (!settings) return NextResponse.json({ error: '설정 없음' }, { status: 500 })
-
   const body = await request.json().catch(() => ({}))
   const targetDate = body.date || new Date().toISOString().split('T')[0]
   const { weekStart, weekEnd } = getWeekRange(targetDate)
 
-  const dailyReports = await getDailyReports(settings.dailyDbId, session.name, weekStart, weekEnd)
+  const dailyReports = await getDailyReports(session.name, weekStart, weekEnd)
   if (dailyReports.length === 0) {
     return NextResponse.json({ error: '이번 주 작성된 일일보고가 없습니다.' }, { status: 400 })
   }
@@ -64,7 +61,6 @@ export async function POST(request: NextRequest) {
 
   if (rawEntries.length > 0) {
     try {
-      // 같은 고객사 여러 날 합치기
       const grouped = new Map<string, string[]>()
       for (const e of rawEntries) {
         if (!grouped.has(e.customer)) grouped.set(e.customer, [])
@@ -85,10 +81,9 @@ ${entriesText}
 
 규칙:
 - content는 해당 고객사와 직접 관련된 지원 작업만 포함
-- 명사형 또는 명사+완료 형식으로 종결 (예: "DB 성능 점검 완료", "장애 원인 분석 및 패치 적용", "시스템 설치 지원")
-- 여러 날의 내용을 하나의 문장 또는 짧은 목록으로 통합
+- 명사형 또는 명사+완료 형식으로 종결 (예: "DB 성능 점검 완료", "장애 원인 분석 및 패치 적용")
 - 한국어, 구체적인 시스템명·작업명 포함
-- 구어체 금지 (예: "했다", "지원했다" → "완료", "지원")`
+- 구어체 금지`
 
       const text = await callGroq(prompt)
       const match = text.match(/\{[\s\S]*\}/)
@@ -103,16 +98,13 @@ ${entriesText}
         }
       }
     } catch {
-      // AI 실패 시 기본값 사용
       const fallbackMap = new Map<string, string[]>()
       for (const e of rawEntries) {
         if (!fallbackMap.has(e.customer)) fallbackMap.set(e.customer, [])
         if (e.feeling) fallbackMap.get(e.customer)!.push(e.feeling)
       }
       section3 = Array.from(fallbackMap.entries()).map(([customerName, feelings]) => ({
-        customerName,
-        supportType: '',
-        content: feelings.join(' / '),
+        customerName, supportType: '', content: feelings.join(' / '),
       }))
     }
   }
@@ -132,7 +124,7 @@ ${allFeelings}
 
 규칙:
 - 명사형 또는 명사+예정 형식으로 종결 (예: "A사 정기 점검 예정", "B 시스템 배포 대응")
-- 구어체 금지 (예: "할 예정입니다" → "예정")`
+- 구어체 금지`
 
       const text = await callGroq(prompt)
       const match = text.match(/\{[\s\S]*\}/)
@@ -145,13 +137,8 @@ ${allFeelings}
     } catch {}
   }
 
-  const members = await getMembers(settings.membersDbId)
-  const member = members.find(m => m.name === session.name)
-  if (!member) return NextResponse.json({ error: '팀원 정보 없음' }, { status: 404 })
-
   const draft: WeeklyDraft = {
-    weekStart,
-    weekEnd,
+    weekStart, weekEnd,
     authorName: session.name,
     section1: [{ projectName: '', content: '' }],
     section2: [{ achievementType: '컨설팅', content: '' }],
@@ -162,6 +149,6 @@ ${allFeelings}
     mappedDates: dailyReports.map(r => r.date),
   }
 
-  await saveWeeklyDraft(draft, member, settings.weeklyDbId)
+  await saveWeeklyDraft(draft)
   return NextResponse.json({ success: true, weekStart, weekEnd })
 }
