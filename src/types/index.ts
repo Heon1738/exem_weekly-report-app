@@ -29,6 +29,7 @@ export interface DailyReport {
   id?: string
   date: string
   authorName: string
+  customerName: string
   emotion: string
   memorableEvent: string   // 기억에 남는 일 (자동 채우기)
   hardThing: string        // 힘들었던 점 (자동 채우기)
@@ -61,7 +62,7 @@ export interface WeeklyDraft {
   section2: Section2Item[]
   section3: Section3Item[]
   section4: string[]
-  section5: { longPending: number; urgent: number }
+  section5: Array<{ description: string; link: string }>
   section6: string         // 팀에 대한 의견 (일일보고 하루 느낀점에서 자동 집계 + 수정 가능)
   mappedDates: string[]
 }

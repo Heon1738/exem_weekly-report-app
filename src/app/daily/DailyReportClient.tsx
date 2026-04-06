@@ -11,6 +11,7 @@ interface Props { session: JwtPayload }
 const emptyForm = (name: string): DailyReport => ({
   date: new Date().toISOString().split('T')[0],
   authorName: name,
+  customerName: '',
   emotion: '',
   memorableEvent: '',
   hardThing: '',
@@ -208,6 +209,16 @@ export default function DailyReportClient({ session }: Props) {
                 <label className="block text-xs text-notion-gray mb-1">작성자</label>
                 <input type="text" value={session.name} readOnly className="input-field bg-notion-gray-bg cursor-not-allowed" />
               </div>
+            </div>
+            <div className="mt-4">
+              <label className="block text-xs text-notion-gray mb-1">고객사명</label>
+              <input
+                type="text"
+                value={form.customerName}
+                onChange={e => setForm(f => ({ ...f, customerName: e.target.value }))}
+                className="input-field"
+                placeholder="지원한 고객사명 (없으면 비워두세요)"
+              />
             </div>
           </div>
 

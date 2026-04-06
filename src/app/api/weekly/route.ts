@@ -54,8 +54,8 @@ export async function GET(request: NextRequest) {
     section2: [{ achievementType: '컨설팅', content: '' }],
     section3: [{ customerName: '', supportType: '', content: '' }],
     section4: [''],
-    section5: { longPending: 0, urgent: 0 },
-    section6: autoSection6,
+    section5: [{ description: '', link: '' }],
+    section6: '',
     mappedDates: dailyReports.map(r => r.date),
   }
 

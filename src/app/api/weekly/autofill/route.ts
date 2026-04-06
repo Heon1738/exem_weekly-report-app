@@ -16,25 +16,16 @@ function getWeekRange(dateStr: string) {
 async function callGroq(prompt: string): Promise<string> {
   const apiKey = process.env.GROQ_API_KEY
   if (!apiKey) throw new Error('GROQ_API_KEY가 설정되지 않았습니다.')
-
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
     body: JSON.stringify({
       model: 'llama-3.3-70b-versatile',
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.2,
     }),
   })
-
-  if (!res.ok) {
-    const err = await res.text()
-    throw new Error(`Groq API 오류 (${res.status}): ${err}`)
-  }
-
+  if (!res.ok) { const err = await res.text(); throw new Error(`Groq API 오류 (${res.status}): ${err}`) }
   const data = await res.json()
   return data.choices?.[0]?.message?.content ?? ''
 }
@@ -55,63 +46,64 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: '이번 주 작성된 일일보고가 없습니다.' }, { status: 400 })
   }
 
-  const reportLines = dailyReports
-    .sort((a, b) => a.date.localeCompare(b.date))
-    .map(r => `[${r.date}] 기억에남는일: ${r.memorableEvent || '없음'} / 힘들었던점: ${r.hardThing || '없음'} / 느낀점: ${r.dailyFeeling || '없음'}`)
-    .join('\n')
+  const sorted = dailyReports.sort((a, b) => a.date.localeCompare(b.date))
 
-  const prompt = `직장인의 이번 주(${weekStart}~${weekEnd}) 일일보고를 주간보고 JSON으로 요약하세요.
-JSON 외 다른 텍스트는 절대 출력하지 마세요. 마크다운 코드블록도 사용하지 마세요.
-
-일일보고 내용:
-${reportLines}
-
-반환할 JSON (정확히 이 형식):
-{"section1":[{"projectName":"업무명","content":"진행내용"}],"section2":[{"achievementType":"컨설팅","content":"성과내용"}],"section4":["특이사항"],"section6":"주간소감"}
-
-규칙:
-- section1: 기억에남는일에서 주요 업무 추출, 비슷한 내용 묶어서 최대 3개
-- section2.achievementType: 반드시 "컨설팅","PreSales","PoC","장애분석","기술문서 공유" 중 하나
-- section2: 완료/성과 내용, 최대 2개
-- section4: 힘들었던점 중 특이사항, 없으면 빈 배열 []
-- section6: 느낀점을 종합한 2~3문장 소감
-- 모든 내용은 한국어`
-
-  try {
-    const text = await callGroq(prompt)
-    const jsonMatch = text.match(/\{[\s\S]*\}/)
-    if (!jsonMatch) throw new Error('JSON을 찾을 수 없습니다.')
-
-    const generated = JSON.parse(jsonMatch[0])
-
-    const members = await getMembers(settings.membersDbId)
-    const member = members.find(m => m.name === session.name)
-    if (!member) return NextResponse.json({ error: '팀원 정보 없음' }, { status: 404 })
-
-    const draft: WeeklyDraft = {
-      weekStart,
-      weekEnd,
-      authorName: session.name,
-      section1: Array.isArray(generated.section1) && generated.section1.length > 0
-        ? generated.section1
-        : [{ projectName: '', content: '' }],
-      section2: Array.isArray(generated.section2) && generated.section2.length > 0
-        ? generated.section2
-        : [{ achievementType: '컨설팅', content: '' }],
-      section3: [{ customerName: '', supportType: '', content: '' }],
-      section4: Array.isArray(generated.section4) && generated.section4.length > 0
-        ? generated.section4
-        : [''],
-      section5: { longPending: 0, urgent: 0 },
-      section6: generated.section6 || '',
-      mappedDates: dailyReports.map(r => r.date),
+  // Section 3: 고객사 지원 - 일일보고 고객사명 기반으로 직접 생성 (AI 불필요)
+  const customerMap = new Map<string, string[]>()
+  for (const r of sorted) {
+    if (r.customerName) {
+      if (!customerMap.has(r.customerName)) customerMap.set(r.customerName, [])
+      if (r.memorableEvent) customerMap.get(r.customerName)!.push(r.memorableEvent)
     }
-
-    await saveWeeklyDraft(draft, member)
-
-    return NextResponse.json({ success: true, weekStart, weekEnd })
-  } catch (e: any) {
-    console.error('[weekly/autofill] error:', e?.message)
-    return NextResponse.json({ error: '주간보고 자동생성에 실패했습니다: ' + (e?.message ?? '') }, { status: 500 })
   }
+  const section3 = customerMap.size > 0
+    ? Array.from(customerMap.entries()).map(([customerName, contents]) => ({
+        customerName,
+        supportType: '',
+        content: contents.join(' / '),
+      }))
+    : [{ customerName: '', supportType: '', content: '' }]
+
+  // Section 4: 예정 작업 - 일일보고 느낀점에서 예정/계획 내용 AI로 추출
+  let section4: string[] = ['']
+  const allFeelings = sorted.filter(r => r.dailyFeeling).map(r => `[${r.date}] ${r.dailyFeeling}`).join('\n')
+  if (allFeelings) {
+    try {
+      const prompt = `아래 직장인의 일일보고 느낀점에서 앞으로 예정된 작업이나 계획된 내용만 추출하세요.
+없으면 빈 배열을 반환하세요. JSON만 반환하고 다른 텍스트는 없어야 합니다.
+
+일일보고:
+${allFeelings}
+
+반환 형식: {"section4":["예정 작업1","예정 작업2"]} 또는 {"section4":[]}`
+      const text = await callGroq(prompt)
+      const match = text.match(/\{[\s\S]*\}/)
+      if (match) {
+        const parsed = JSON.parse(match[0])
+        if (Array.isArray(parsed.section4) && parsed.section4.length > 0) {
+          section4 = parsed.section4
+        }
+      }
+    } catch {}
+  }
+
+  const members = await getMembers(settings.membersDbId)
+  const member = members.find(m => m.name === session.name)
+  if (!member) return NextResponse.json({ error: '팀원 정보 없음' }, { status: 404 })
+
+  const draft: WeeklyDraft = {
+    weekStart,
+    weekEnd,
+    authorName: session.name,
+    section1: [{ projectName: '', content: '' }],
+    section2: [{ achievementType: '컨설팅', content: '' }],
+    section3,
+    section4,
+    section5: [{ description: '', link: '' }],
+    section6: '',
+    mappedDates: dailyReports.map(r => r.date),
+  }
+
+  await saveWeeklyDraft(draft, member)
+  return NextResponse.json({ success: true, weekStart, weekEnd })
 }

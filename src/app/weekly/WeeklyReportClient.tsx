@@ -32,7 +32,7 @@ function emptyDraft(authorName: string, weekStart: string, weekEnd: string): Wee
     section2: [{ achievementType: ACHIEVEMENT_TYPES[0], content: '' }],
     section3: [{ customerName: '', supportType: '', content: '' }],
     section4: [''],
-    section5: { longPending: 0, urgent: 0 },
+    section5: [{ description: '', link: '' }],
     section6: '',
     mappedDates: [],
   }
@@ -95,6 +95,10 @@ export default function WeeklyReportClient({ session }: Props) {
       if (res.ok) {
         const data = await res.json()
         const { autoSection6: auto, dailyReports, ...draftData } = data
+        // 구버전 section5 호환 ({longPending, urgent} → 배열)
+        if (draftData.section5 && !Array.isArray(draftData.section5)) {
+          draftData.section5 = [{ description: '', link: '' }]
+        }
         setDraft(draftData)
         setAutoSection6(auto || '')
         setDailySummary(dailyReports || [])
@@ -161,6 +165,11 @@ export default function WeeklyReportClient({ session }: Props) {
   const removeS4 = (i: number) => setDraft(d => ({ ...d, section4: d.section4.filter((_, j) => j !== i) }))
   const updateS4 = (i: number, val: string) =>
     setDraft(d => ({ ...d, section4: d.section4.map((x, j) => j === i ? val : x) }))
+
+  const addS5 = () => setDraft(d => ({ ...d, section5: [...d.section5, { description: '', link: '' }] }))
+  const removeS5 = (i: number) => setDraft(d => ({ ...d, section5: d.section5.filter((_, j) => j !== i) }))
+  const updateS5 = (i: number, key: 'description' | 'link', val: string) =>
+    setDraft(d => ({ ...d, section5: d.section5.map((x, j) => j === i ? { ...x, [key]: val } : x) }))
 
   const weekLabel = `${weekStart} ~ ${weekEnd}`
 
@@ -309,45 +318,39 @@ export default function WeeklyReportClient({ session }: Props) {
 
             {/* Section 5 */}
             <div className="card">
-              <h2 className="text-sm font-semibold text-notion-text mb-3">5. DEQ 진행 상황</h2>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs text-notion-gray mb-1">장기 미해결 일감 (건)</label>
-                  <input type="number" min="0" value={draft.section5.longPending}
-                    onChange={e => setDraft(d => ({ ...d, section5: { ...d.section5, longPending: Number(e.target.value) } }))}
-                    className="input-field text-sm" />
-                </div>
-                <div>
-                  <label className="block text-xs text-notion-gray mb-1">우선순위 긴급 (+DSR) 일감 (건)</label>
-                  <input type="number" min="0" value={draft.section5.urgent}
-                    onChange={e => setDraft(d => ({ ...d, section5: { ...d.section5, urgent: Number(e.target.value) } }))}
-                    className="input-field text-sm" />
-                </div>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm font-semibold text-notion-text">5. DEQ 진행 상황</h2>
+                <button onClick={addS5} className="text-xs text-notion-blue hover:underline">+ 항목 추가</button>
+              </div>
+              <p className="text-xs text-notion-gray mb-2">ex) 서울보증보험 락 발생 후 비정상 작동</p>
+              <div className="space-y-2">
+                {draft.section5.map((item, i) => (
+                  <div key={i} className="flex gap-2">
+                    <input value={item.description} onChange={e => updateS5(i, 'description', e.target.value)} placeholder="내용 (예: 서울보증보험 락 발생 후 비정상 작동)" className="input-field flex-1 text-sm" />
+                    <input value={item.link} onChange={e => updateS5(i, 'link', e.target.value)} placeholder="링크 (선택)" className="input-field w-40 text-sm" />
+                    {draft.section5.length > 1 && <button onClick={() => removeS5(i)} className="text-red-400 hover:text-red-600 text-lg leading-none mt-1">×</button>}
+                  </div>
+                ))}
               </div>
             </div>
 
             {/* Section 6 */}
             <div className="card">
-              <div className="flex items-center justify-between mb-2">
-                <h2 className="text-sm font-semibold text-notion-text">6. 팀에 대한 의견</h2>
-                {autoSection6 && (
-                  <button onClick={applyAutoSection6} className="text-xs text-notion-blue hover:underline">
-                    ↩ 일일보고에서 자동 채우기
-                  </button>
-                )}
-              </div>
+              <h2 className="text-sm font-semibold text-notion-text mb-3">6. 팀에 대한 의견</h2>
               {autoSection6 && (
-                <div className="mb-2 p-2 bg-notion-gray-bg rounded text-xs text-notion-gray">
-                  <p className="font-medium mb-1">이번 주 하루 느낀점 (참고):</p>
-                  <p className="whitespace-pre-line line-clamp-3">{autoSection6}</p>
-                </div>
+                <details className="mb-3">
+                  <summary className="text-xs text-notion-blue cursor-pointer hover:underline">이번 주 하루 느낀점 참고 보기 (클릭)</summary>
+                  <div className="mt-2 p-2 bg-notion-gray-bg rounded text-xs text-notion-gray whitespace-pre-line">
+                    {autoSection6}
+                  </div>
+                </details>
               )}
               <textarea
                 value={draft.section6}
                 onChange={e => setDraft(d => ({ ...d, section6: e.target.value }))}
                 rows={4}
                 className="input-field resize-none text-sm"
-                placeholder="팀이나 본부에 대한 건의사항을 작성하세요."
+                placeholder="팀이나 본부에 대한 건의사항을 자유롭게 작성하세요."
               />
             </div>
           </div>
@@ -426,8 +429,15 @@ export default function WeeklyReportClient({ session }: Props) {
                 {/* S5 */}
                 <div>
                   <h2 className="text-base font-semibold border-b border-notion-border pb-1 mb-2">5. DEQ 진행 상황</h2>
-                  <p className="text-sm ml-3">• 장기 미해결 일감 {draft.section5.longPending}건</p>
-                  <p className="text-sm ml-3">• 우선순위 긴급 (+DSR) 진행 일감 {draft.section5.urgent}건</p>
+                  {draft.section5.filter(x => x.description).length === 0
+                    ? <p className="text-sm text-notion-gray ml-3">• 없음</p>
+                    : draft.section5.filter(x => x.description).map((item, i) => (
+                        <div key={i} className="ml-3 mb-1">
+                          <p className="text-sm">• {item.description}
+                            {item.link && <a href={item.link.startsWith('http') ? item.link : `https://${item.link}`} target="_blank" rel="noopener noreferrer" className="ml-2 text-notion-blue underline text-xs">{item.link}</a>}
+                          </p>
+                        </div>
+                      ))}
                 </div>
                 {/* S6 */}
                 <div>

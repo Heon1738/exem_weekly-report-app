@@ -141,6 +141,18 @@ async function ensureLoginIdColumn(membersDbId: string): Promise<void> {
   } catch {}
 }
 
+async function ensureCustomerNameColumn(dailyDbId: string): Promise<void> {
+  try {
+    const db = await notion.databases.retrieve({ database_id: dailyDbId }) as any
+    if (!db.properties['고객사명']) {
+      await notion.databases.update({
+        database_id: dailyDbId,
+        properties: { '고객사명': { rich_text: {} } },
+      } as any)
+    }
+  } catch {}
+}
+
 export async function getMembers(membersDbId: string): Promise<Member[]> {
   await ensureLoginIdColumn(membersDbId)
   const res = await notion.databases.query({ database_id: membersDbId })
@@ -212,6 +224,7 @@ export async function deleteLegend(legendId: string): Promise<void> {
 // 일일보고 CRUD
 // ─────────────────────────────────────────────
 export async function getDailyReports(dailyDbId: string, authorName: string, weekStart?: string, weekEnd?: string): Promise<DailyReport[]> {
+  await ensureCustomerNameColumn(dailyDbId)
   const filters: any[] = [{ property: '작성자', rich_text: { equals: authorName } }]
   if (weekStart) filters.push({ property: '날짜', date: { on_or_after: weekStart } })
   if (weekEnd) filters.push({ property: '날짜', date: { on_or_before: weekEnd } })
@@ -226,6 +239,7 @@ export async function getDailyReports(dailyDbId: string, authorName: string, wee
     id: page.id,
     date: page.properties['날짜']?.date?.start ?? '',
     authorName: page.properties['작성자']?.rich_text?.[0]?.plain_text ?? '',
+    customerName: page.properties['고객사명']?.rich_text?.[0]?.plain_text ?? '',
     emotion: page.properties['감정']?.rich_text?.[0]?.plain_text ?? '',
     memorableEvent: page.properties['기억에 남는 일']?.rich_text?.[0]?.plain_text ?? '',
     hardThing: page.properties['힘들었던 점']?.rich_text?.[0]?.plain_text ?? '',
@@ -240,6 +254,7 @@ export async function getDailyReport(pageId: string): Promise<DailyReport | null
       id: page.id,
       date: page.properties['날짜']?.date?.start ?? '',
       authorName: page.properties['작성자']?.rich_text?.[0]?.plain_text ?? '',
+      customerName: page.properties['고객사명']?.rich_text?.[0]?.plain_text ?? '',
       emotion: page.properties['감정']?.rich_text?.[0]?.plain_text ?? '',
       memorableEvent: page.properties['기억에 남는 일']?.rich_text?.[0]?.plain_text ?? '',
       hardThing: page.properties['힘들었던 점']?.rich_text?.[0]?.plain_text ?? '',
@@ -259,6 +274,7 @@ export async function createDailyReport(dailyDbId: string, report: DailyReport):
       '기억에 남는 일': { rich_text: [{ text: { content: report.memorableEvent } }] },
       '힘들었던 점': { rich_text: [{ text: { content: report.hardThing } }] },
       '하루 느낀점': { rich_text: [{ text: { content: report.dailyFeeling } }] },
+      '고객사명': { rich_text: [{ text: { content: report.customerName || '' } }] },
     },
   })
   return page.id
@@ -270,6 +286,7 @@ export async function updateDailyReport(pageId: string, report: Partial<DailyRep
   if (report.memorableEvent !== undefined) props['기억에 남는 일'] = { rich_text: [{ text: { content: report.memorableEvent } }] }
   if (report.hardThing !== undefined) props['힘들었던 점'] = { rich_text: [{ text: { content: report.hardThing } }] }
   if (report.dailyFeeling !== undefined) props['하루 느낀점'] = { rich_text: [{ text: { content: report.dailyFeeling } }] }
+  if (report.customerName !== undefined) props['고객사명'] = { rich_text: [{ text: { content: report.customerName } }] }
   await notion.pages.update({ page_id: pageId, properties: props as any })
 }
 
@@ -504,11 +521,22 @@ function buildS4(items: string[]): any[] {
   }))
 }
 
-function buildS5(deq: WeeklyDraft['section5']): any[] {
-  return [
-    { type: 'bulleted_list_item', bulleted_list_item: { rich_text: [{ type: 'text', text: { content: `장기 미해결 일감 ${deq.longPending}건` } }], color: 'default' } },
-    { type: 'bulleted_list_item', bulleted_list_item: { rich_text: [{ type: 'text', text: { content: `우선순위 긴급 (+DSR) 진행 일감 ${deq.urgent}건` } }], color: 'default' } },
-  ]
+function buildS5(items: WeeklyDraft['section5']): any[] {
+  const valid = Array.isArray(items) ? items.filter(i => i.description) : []
+  if (!valid.length) return [empty()]
+  return valid.map(item => ({
+    type: 'bulleted_list_item',
+    bulleted_list_item: {
+      rich_text: [
+        { type: 'text', text: { content: item.description } },
+        ...(item.link ? [
+          { type: 'text', text: { content: '  ' } },
+          { type: 'text', text: { content: item.link, link: { url: item.link.startsWith('http') ? item.link : `https://${item.link}` } } },
+        ] : []),
+      ],
+      color: 'default',
+    },
+  }))
 }
 
 function buildS6(opinion: string): any[] {

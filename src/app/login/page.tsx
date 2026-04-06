@@ -61,7 +61,7 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!loginId.trim() || !pin) {
-      setError('아이디와 PIN을 입력해주세요.')
+      setError('아이디와 패스워드를 입력해주세요.')
       return
     }
     setLoading(true)
@@ -93,8 +93,8 @@ export default function LoginPage() {
 
   const handleChangePin = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (newPin !== newPinConfirm) { setError('새 PIN이 일치하지 않습니다.'); return }
-    if (newPin.length < 4) { setError('PIN은 4자리 이상이어야 합니다.'); return }
+    if (newPin !== newPinConfirm) { setError('패스워드가 일치하지 않습니다.'); return }
+    if (newPin.length < 4) { setError('패스워드는 4자리 이상이어야 합니다.'); return }
     if (newPin === '1234') { setError('1234는 사용할 수 없습니다.'); return }
 
     setPinChangeLoading(true)
@@ -109,7 +109,7 @@ export default function LoginPage() {
         router.push('/daily')
       } else {
         const data = await res.json()
-        setError(data.error || 'PIN 변경에 실패했습니다.')
+        setError(data.error || '패스워드 변경에 실패했습니다.')
       }
     } catch {
       setError('PIN 변경 중 오류가 발생했습니다.')
@@ -125,23 +125,23 @@ export default function LoginPage() {
         <div className="w-full max-w-sm">
           <div className="text-center mb-8">
             <div className="text-4xl mb-3">🔐</div>
-            <h1 className="text-2xl font-semibold text-notion-text">PIN 변경 필요</h1>
-            <p className="text-sm text-notion-gray mt-1">초기 PIN(1234)을 새로운 PIN으로 변경해주세요.</p>
+            <h1 className="text-2xl font-semibold text-notion-text">패스워드 변경 필요</h1>
+            <p className="text-sm text-notion-gray mt-1">초기 패스워드(1234)를 새로운 패스워드로 변경해주세요.</p>
           </div>
           <form onSubmit={handleChangePin} className="card space-y-4">
             <div>
-              <label className="block text-sm font-medium text-notion-text mb-1.5">새 PIN</label>
+              <label className="block text-sm font-medium text-notion-text mb-1.5">새 패스워드</label>
               <input type="password" value={newPin} onChange={e => setNewPin(e.target.value)}
-                placeholder="새 PIN 입력 (4자리 이상)" className="input-field" maxLength={20} required />
+                placeholder="새 패스워드 입력 (4자리 이상)" className="input-field" maxLength={20} required />
             </div>
             <div>
-              <label className="block text-sm font-medium text-notion-text mb-1.5">새 PIN 확인</label>
+              <label className="block text-sm font-medium text-notion-text mb-1.5">새 패스워드 확인</label>
               <input type="password" value={newPinConfirm} onChange={e => setNewPinConfirm(e.target.value)}
-                placeholder="새 PIN 다시 입력" className="input-field" maxLength={20} required />
+                placeholder="새 패스워드 다시 입력" className="input-field" maxLength={20} required />
             </div>
             {error && <p className="text-sm text-red-500">{error}</p>}
             <button type="submit" disabled={pinChangeLoading} className="btn-primary w-full">
-              {pinChangeLoading ? '변경 중...' : 'PIN 변경 완료'}
+              {pinChangeLoading ? '변경 중...' : '패스워드 변경 완료'}
             </button>
           </form>
         </div>
@@ -206,12 +206,12 @@ export default function LoginPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-notion-text mb-1.5">PIN</label>
+              <label className="block text-sm font-medium text-notion-text mb-1.5">패스워드</label>
               <input
                 type="password"
                 value={pin}
                 onChange={e => setPin(e.target.value)}
-                placeholder="PIN을 입력하세요"
+                placeholder="패스워드를 입력하세요"
                 className="input-field"
                 maxLength={20}
                 required

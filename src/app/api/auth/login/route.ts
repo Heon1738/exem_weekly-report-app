@@ -7,7 +7,7 @@ export async function POST(request: NextRequest) {
     const { loginId, pin } = await request.json()
 
     if (!loginId || !pin) {
-      return NextResponse.json({ error: '아이디와 PIN을 입력해주세요.' }, { status: 400 })
+      return NextResponse.json({ error: '아이디와 패스워드를 입력해주세요.' }, { status: 400 })
     }
 
     const settings = await getAppSettings()
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
 
     const pinHash = hashPin(pin)
     if (member.pinHash !== pinHash) {
-      return NextResponse.json({ error: 'PIN이 올바르지 않습니다.' }, { status: 401 })
+      return NextResponse.json({ error: '패스워드가 올바르지 않습니다.' }, { status: 401 })
     }
 
     // 초기 PIN(1234) 사용 중이면 변경 강제

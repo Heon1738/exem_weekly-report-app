@@ -105,7 +105,7 @@ export default function SettingsClient({ session }: Props) {
         body: JSON.stringify(newMember),
       })
       if (res.ok) {
-        setMemberMsg({ type: 'success', text: '팀원이 추가되었습니다. 초기 PIN은 1234입니다.' })
+        setMemberMsg({ type: 'success', text: '팀원이 추가되었습니다. 초기 패스워드는 1234입니다.' })
         setNewMember({ loginId: '', name: '', position: '', department: '', role: 'member' })
         await fetchMembers()
       } else {
@@ -311,7 +311,7 @@ export default function SettingsClient({ session }: Props) {
                             />
                           </div>
                           <div>
-                            <label className="block text-xs text-notion-gray mb-1">새 PIN <span className="text-notion-gray font-normal">(변경 시에만 입력)</span></label>
+                            <label className="block text-xs text-notion-gray mb-1">새 패스워드 <span className="text-notion-gray font-normal">(변경 시에만 입력)</span></label>
                             <input
                               type="password"
                               value={editForm.pin}
@@ -377,7 +377,7 @@ export default function SettingsClient({ session }: Props) {
             {/* 팀원 추가 */}
             <div className="card">
               <h2 className="text-sm font-semibold text-notion-text mb-1">팀원 추가</h2>
-              <p className="text-xs text-notion-gray mb-3">초기 PIN은 <strong>1234</strong>로 설정됩니다. 첫 로그인 시 변경이 강제됩니다.</p>
+              <p className="text-xs text-notion-gray mb-3">초기 패스워드는 <strong>1234</strong>로 설정됩니다. 첫 로그인 시 변경이 강제됩니다.</p>
               <form onSubmit={handleAddMember} className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
                   <div>

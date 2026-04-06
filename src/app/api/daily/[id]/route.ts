@@ -34,6 +34,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     memorableEvent: body.memorableEvent,
     hardThing: body.hardThing,
     dailyFeeling: body.dailyFeeling,
+    customerName: body.customerName,
   })
 
   return NextResponse.json({ success: true })
