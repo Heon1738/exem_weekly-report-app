@@ -58,6 +58,7 @@ export default function WeeklyReportClient({ session }: Props) {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [notionUrl, setNotionUrl] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit')
+  const [weeklyList, setWeeklyList] = useState<{ weekStart: string; weekEnd: string; updatedAt: string }[]>([])
 
   useEffect(() => {
     if (session.role === 'leader') fetchMembers()
@@ -66,10 +67,20 @@ export default function WeeklyReportClient({ session }: Props) {
   }, [])
 
   useEffect(() => { loadDraft() }, [selectedDate, selectedMember])
+  useEffect(() => { fetchWeeklyList() }, [selectedMember])
 
   const fetchMembers = async () => {
     const res = await fetch('/api/settings/members')
     if (res.ok) setMembers((await res.json()).map((m: any) => m.name))
+  }
+
+  const fetchWeeklyList = async () => {
+    try {
+      const params = new URLSearchParams()
+      if (session.role === 'leader' && selectedMember !== session.name) params.set('name', selectedMember)
+      const res = await fetch(`/api/weekly/list?${params}`)
+      if (res.ok) setWeeklyList(await res.json())
+    } catch {}
   }
 
   const fetchLegends = async () => {
@@ -114,8 +125,10 @@ export default function WeeklyReportClient({ session }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(draft),
       })
-      if (res.ok) setMessage({ type: 'success', text: '초안이 저장되었습니다.' })
-      else setMessage({ type: 'error', text: '저장에 실패했습니다.' })
+      if (res.ok) {
+        setMessage({ type: 'success', text: '초안이 저장되었습니다.' })
+        fetchWeeklyList()
+      } else setMessage({ type: 'error', text: '저장에 실패했습니다.' })
     } catch {
       setMessage({ type: 'error', text: '오류가 발생했습니다.' })
     } finally { setSaving(false) }
@@ -172,6 +185,10 @@ export default function WeeklyReportClient({ session }: Props) {
     setDraft(d => ({ ...d, section5: d.section5.map((x, j) => j === i ? { ...x, [key]: val } : x) }))
 
   const weekLabel = `${weekStart} ~ ${weekEnd}`
+
+  const handleSelectWeek = (ws: string) => {
+    setSelectedDate(ws)
+  }
 
   return (
     <div className="min-h-screen bg-notion-sidebar">
@@ -355,6 +372,37 @@ export default function WeeklyReportClient({ session }: Props) {
                 className="input-field resize-none text-sm"
                 placeholder="팀이나 본부에 대한 건의사항을 자유롭게 작성하세요."
               />
+            </div>
+          </div>
+        )}
+
+        {/* 과거 주간보고 목록 */}
+        {weeklyList.length > 0 && (
+          <div className="mt-8">
+            <h2 className="text-sm font-semibold text-notion-text mb-3">과거 주간보고</h2>
+            <div className="space-y-2">
+              {weeklyList.map(item => {
+                const isActive = item.weekStart === weekStart
+                return (
+                  <button
+                    key={item.weekStart}
+                    onClick={() => handleSelectWeek(item.weekStart)}
+                    className={`w-full text-left card flex items-center justify-between py-3 transition-colors ${
+                      isActive ? 'border-notion-blue bg-notion-blue-bg' : 'hover:border-gray-300'
+                    }`}
+                  >
+                    <div>
+                      <p className={`text-sm font-medium ${isActive ? 'text-notion-blue' : 'text-notion-text'}`}>
+                        {item.weekStart} ~ {item.weekEnd}
+                      </p>
+                      <p className="text-xs text-notion-gray mt-0.5">
+                        {isActive ? '현재 보는 주' : `저장됨: ${item.updatedAt.slice(0, 10)}`}
+                      </p>
+                    </div>
+                    {isActive && <span className="text-xs text-notion-blue font-medium">선택됨</span>}
+                  </button>
+                )
+              })}
             </div>
           </div>
         )}

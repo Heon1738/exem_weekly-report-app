@@ -269,3 +269,19 @@ export async function loadWeeklyDraft(weekStart: string, weekEnd: string, author
     return rows[0].draft_data as WeeklyDraft
   } catch { return null }
 }
+
+export async function getWeeklyDraftsList(authorName: string): Promise<{ weekStart: string; weekEnd: string; updatedAt: string }[]> {
+  try {
+    const rows = await sql`
+      SELECT week_start::text, week_end::text, updated_at
+      FROM weekly_drafts
+      WHERE author_name=${authorName}
+      ORDER BY week_start DESC
+    `
+    return rows.map(r => ({
+      weekStart: r.week_start.slice(0, 10),
+      weekEnd: r.week_end.slice(0, 10),
+      updatedAt: r.updated_at,
+    }))
+  } catch { return [] }
+}
