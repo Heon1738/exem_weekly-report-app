@@ -113,7 +113,11 @@ function buildS1(items: WeeklyDraft['section1']): any[] {
     bulleted_list_item: {
       rich_text: [{ type: 'text', text: { content: item.projectName } }],
       color: 'default',
-      children: item.content ? [{ type: 'toggle', toggle: { rich_text: [{ type: 'text', text: { content: item.content } }], color: 'default', children: [] } }] : [],
+      // toggle은 4레벨 중첩 시 Notion API 오류 발생 → bulleted_list_item으로 대체
+      children: item.content ? [{
+        type: 'bulleted_list_item',
+        bulleted_list_item: { rich_text: [{ type: 'text', text: { content: item.content } }], color: 'default' }
+      }] : [],
     },
   }))
 }
@@ -131,25 +135,26 @@ function buildS2(items: WeeklyDraft['section2']): any[] {
 }
 
 function buildS3(items: WeeklyDraft['section3'], member: Member): any[] {
-  if (!items.length) return [empty()]
+  const valid = items.filter(x => x.customerName)
+  if (!valid.length) return [empty()]
   const map = new Map<string, Map<string, string[]>>()
-  for (const item of items) {
+  for (const item of valid) {
     if (!map.has(item.customerName)) map.set(item.customerName, new Map())
     const st = item.supportType || '기타'
     if (!map.get(item.customerName)!.has(st)) map.get(item.customerName)!.set(st, [])
     if (item.content) map.get(item.customerName)!.get(st)!.push(item.content)
   }
+  // toggle은 heading_1 하위 3레벨+에서 children 불가 → bulleted_list_item으로 대체 (지원종류: 내용)
   return Array.from(map.entries()).map(([customer, supports]) => ({
     type: 'bulleted_list_item',
     bulleted_list_item: {
       rich_text: [{ type: 'text', text: { content: `${customer} - ${member.name} ${member.position}` } }],
       color: 'default',
       children: Array.from(supports.entries()).map(([type, contents]) => ({
-        type: 'toggle',
-        toggle: {
-          rich_text: [{ type: 'text', text: { content: type } }],
+        type: 'bulleted_list_item',
+        bulleted_list_item: {
+          rich_text: [{ type: 'text', text: { content: contents.length > 0 ? `${type}: ${contents.join(' / ')}` : type } }],
           color: 'default',
-          children: contents.map(c => ({ type: 'bulleted_list_item', bulleted_list_item: { rich_text: [{ type: 'text', text: { content: c } }], color: 'default' } })),
         },
       })),
     },
