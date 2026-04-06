@@ -1,17 +1,27 @@
 import { NextResponse } from 'next/server'
-import { getMembers } from '@/lib/db'
+import { neon } from '@neondatabase/serverless'
 
 export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
-// 로그인 페이지용 공개 엔드포인트
 export async function GET() {
   try {
-    const members = await getMembers()
-    if (!members.length) {
-      return NextResponse.json({ initialized: true, hasMembers: false, names: [] })
-    }
-    return NextResponse.json({ initialized: true, hasMembers: true, names: members.map(m => m.name) })
-  } catch {
-    return NextResponse.json({ initialized: false, hasMembers: false, names: [] })
+    const sql = neon(process.env.DATABASE_URL!)
+    const rows = await sql`SELECT name FROM members ORDER BY created_at ASC, name ASC`
+    const names: string[] = rows.map((r: Record<string, unknown>) => String(r.name))
+
+    const response = NextResponse.json(
+      names.length === 0
+        ? { initialized: true, hasMembers: false, names: [] }
+        : { initialized: true, hasMembers: true, names }
+    )
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+    response.headers.set('Pragma', 'no-cache')
+    return response
+  } catch (error) {
+    console.error('Members API error:', error)
+    const response = NextResponse.json({ initialized: false, hasMembers: false, names: [] })
+    response.headers.set('Cache-Control', 'no-store')
+    return response
   }
 }

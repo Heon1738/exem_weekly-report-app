@@ -242,7 +242,7 @@ export default function DailyReportClient({ session }: Props) {
                 value={form.customerName}
                 onChange={e => setForm(f => ({ ...f, customerName: e.target.value }))}
                 className="input-field"
-                placeholder="지원한 고객사명 (없으면 비워두세요)"
+                placeholder="ex. 삼성전자, 한국전력 (없으면 비워두세요)"
               />
             </div>
           </div>
