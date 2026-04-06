@@ -22,7 +22,7 @@ async function callGroq(prompt: string): Promise<string> {
     body: JSON.stringify({
       model: 'llama-3.3-70b-versatile',
       messages: [{ role: 'user', content: prompt }],
-      temperature: 0.2,
+      temperature: 0.1,
     }),
   })
   if (!res.ok) { const err = await res.text(); throw new Error(`Groq API 오류 (${res.status}): ${err}`) }
@@ -48,37 +48,92 @@ export async function POST(request: NextRequest) {
 
   const sorted = dailyReports.sort((a, b) => a.date.localeCompare(b.date))
 
-  // Section 3: 고객사 지원 - 일일보고 고객사명 기반으로 직접 생성 (콤마로 여러 고객사 지원)
-  const customerMap = new Map<string, string[]>()
+  // Section 3: 고객사별 지원 내역 — AI로 명확하고 명사형으로 생성
+  interface CustomerEntry { customer: string; date: string; feeling: string }
+  const rawEntries: CustomerEntry[] = []
   for (const r of sorted) {
     if (r.customerName) {
       const customers = r.customerName.split(',').map(c => c.trim()).filter(Boolean)
       for (const customer of customers) {
-        if (!customerMap.has(customer)) customerMap.set(customer, [])
-        if (r.memorableEvent) customerMap.get(customer)!.push(r.memorableEvent)
+        rawEntries.push({ customer, date: r.date, feeling: r.dailyFeeling || r.memorableEvent || '' })
       }
     }
   }
-  const section3 = customerMap.size > 0
-    ? Array.from(customerMap.entries()).map(([customerName, contents]) => ({
+
+  let section3: WeeklyDraft['section3'] = [{ customerName: '', supportType: '', content: '' }]
+
+  if (rawEntries.length > 0) {
+    try {
+      // 같은 고객사 여러 날 합치기
+      const grouped = new Map<string, string[]>()
+      for (const e of rawEntries) {
+        if (!grouped.has(e.customer)) grouped.set(e.customer, [])
+        if (e.feeling) grouped.get(e.customer)!.push(`[${e.date}] ${e.feeling}`)
+      }
+
+      const entriesText = Array.from(grouped.entries())
+        .map(([customer, feelings]) => `고객사: ${customer}\n내용:\n${feelings.join('\n')}`)
+        .join('\n\n---\n\n')
+
+      const prompt = `아래 일일보고에서 각 고객사별 지원 내용을 명사형으로 간결하게 요약하세요.
+JSON만 반환하세요. 마크다운 코드블록 사용 금지.
+
+일일보고:
+${entriesText}
+
+반환 형식: {"results":[{"customer":"고객사명","content":"요약내용"},...]}
+
+규칙:
+- content는 해당 고객사와 직접 관련된 지원 작업만 포함
+- 명사형 또는 명사+완료 형식으로 종결 (예: "DB 성능 점검 완료", "장애 원인 분석 및 패치 적용", "시스템 설치 지원")
+- 여러 날의 내용을 하나의 문장 또는 짧은 목록으로 통합
+- 한국어, 구체적인 시스템명·작업명 포함
+- 구어체 금지 (예: "했다", "지원했다" → "완료", "지원")`
+
+      const text = await callGroq(prompt)
+      const match = text.match(/\{[\s\S]*\}/)
+      if (match) {
+        const parsed = JSON.parse(match[0])
+        if (Array.isArray(parsed.results) && parsed.results.length > 0) {
+          section3 = parsed.results.map((r: any) => ({
+            customerName: r.customer || '',
+            supportType: '',
+            content: r.content || '',
+          }))
+        }
+      }
+    } catch {
+      // AI 실패 시 기본값 사용
+      const fallbackMap = new Map<string, string[]>()
+      for (const e of rawEntries) {
+        if (!fallbackMap.has(e.customer)) fallbackMap.set(e.customer, [])
+        if (e.feeling) fallbackMap.get(e.customer)!.push(e.feeling)
+      }
+      section3 = Array.from(fallbackMap.entries()).map(([customerName, feelings]) => ({
         customerName,
         supportType: '',
-        content: contents.join(' / '),
+        content: feelings.join(' / '),
       }))
-    : [{ customerName: '', supportType: '', content: '' }]
+    }
+  }
 
-  // Section 4: 예정 작업 - 일일보고 느낀점에서 예정/계획 내용 AI로 추출
+  // Section 4: 예정 작업 — 명사형으로 추출
   let section4: string[] = ['']
   const allFeelings = sorted.filter(r => r.dailyFeeling).map(r => `[${r.date}] ${r.dailyFeeling}`).join('\n')
   if (allFeelings) {
     try {
-      const prompt = `아래 직장인의 일일보고 느낀점에서 앞으로 예정된 작업이나 계획된 내용만 추출하세요.
-없으면 빈 배열을 반환하세요. JSON만 반환하고 다른 텍스트는 없어야 합니다.
+      const prompt = `아래 일일보고 느낀점에서 앞으로 예정된 작업이나 계획만 추출하세요.
+없으면 빈 배열을 반환하세요. JSON만 반환하세요. 마크다운 코드블록 사용 금지.
 
 일일보고:
 ${allFeelings}
 
-반환 형식: {"section4":["예정 작업1","예정 작업2"]} 또는 {"section4":[]}`
+반환 형식: {"section4":["예정 작업1","예정 작업2"]} 또는 {"section4":[]}
+
+규칙:
+- 명사형 또는 명사+예정 형식으로 종결 (예: "A사 정기 점검 예정", "B 시스템 배포 대응")
+- 구어체 금지 (예: "할 예정입니다" → "예정")`
+
       const text = await callGroq(prompt)
       const match = text.match(/\{[\s\S]*\}/)
       if (match) {

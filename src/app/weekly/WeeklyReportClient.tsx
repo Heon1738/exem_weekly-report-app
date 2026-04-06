@@ -289,8 +289,12 @@ export default function WeeklyReportClient({ session }: Props) {
                 {draft.section3.map((item, i) => (
                   <div key={i} className="flex gap-2">
                     <input value={item.customerName} onChange={e => updateS3(i, 'customerName', e.target.value)} placeholder="고객사명" className="input-field w-28 flex-shrink-0 text-sm" />
-                    <select value={item.supportType} onChange={e => updateS3(i, 'supportType', e.target.value)} className="input-field w-28 flex-shrink-0 text-sm">
-                      <option value="">지원 종류</option>
+                    <select
+                      value={item.supportType}
+                      onChange={e => updateS3(i, 'supportType', e.target.value)}
+                      className={`input-field w-28 flex-shrink-0 text-sm ${!item.supportType ? 'border-red-400 text-red-500' : ''}`}
+                    >
+                      <option value="">지원 종류 *</option>
                       {legends.map(l => <option key={l.id} value={l.label}>{l.label}</option>)}
                     </select>
                     <input value={item.content} onChange={e => updateS3(i, 'content', e.target.value)} placeholder="지원 내용" className="input-field flex-1 text-sm" />

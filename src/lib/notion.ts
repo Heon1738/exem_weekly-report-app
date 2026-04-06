@@ -1,13 +1,24 @@
 import { Client } from '@notionhq/client'
-import type { Member, LegendItem, AppSettings, DailyReport, WeeklyDraft, Section3Item } from '@/types'
+import { getNotionConfig } from './notion-config'
+import type { Member, LegendItem, AppSettings, DailyReport, WeeklyDraft } from '@/types'
 
-const notion = new Client({ auth: process.env.NOTION_TOKEN })
-const PARENT_PAGE_ID = process.env.NOTION_PARENT_PAGE_ID!
+async function getNotion(): Promise<Client> {
+  const config = await getNotionConfig()
+  return new Client({ auth: config?.token || process.env.NOTION_TOKEN })
+}
+
+async function getDefaultParentPageId(): Promise<string> {
+  const config = await getNotionConfig()
+  return config?.parentPageId || process.env.NOTION_PARENT_PAGE_ID!
+}
 
 // ─────────────────────────────────────────────
 // 앱 설정 초기화
 // ─────────────────────────────────────────────
 export async function initializeAppDatabases(): Promise<AppSettings> {
+  const notion = await getNotion()
+  const PARENT_PAGE_ID = await getDefaultParentPageId()
+
   const existing = await getAppSettings()
   if (existing) return existing
 
@@ -74,6 +85,8 @@ export async function initializeAppDatabases(): Promise<AppSettings> {
 
 export async function getAppSettings(): Promise<AppSettings | null> {
   try {
+    const notion = await getNotion()
+    const PARENT_PAGE_ID = await getDefaultParentPageId()
     const blocks = await notion.blocks.children.list({ block_id: PARENT_PAGE_ID, page_size: 50 })
     for (const block of blocks.results) {
       if (block.object !== 'block') continue
@@ -97,6 +110,8 @@ export async function getAppSettings(): Promise<AppSettings | null> {
 
 export async function updateAppSettings(updates: Partial<Pick<AppSettings, 'teamName' | 'divisionName' | 'weeklyDbId'>>): Promise<void> {
   try {
+    const notion = await getNotion()
+    const PARENT_PAGE_ID = await getDefaultParentPageId()
     const blocks = await notion.blocks.children.list({ block_id: PARENT_PAGE_ID, page_size: 50 })
     for (const block of blocks.results) {
       if (block.object !== 'block') continue
@@ -128,7 +143,7 @@ export async function updateAppSettings(updates: Partial<Pick<AppSettings, 'team
 // 팀원 관리
 // ─────────────────────────────────────────────
 
-async function ensureCustomerNameColumn(dailyDbId: string): Promise<void> {
+async function ensureCustomerNameColumn(dailyDbId: string, notion: Client): Promise<void> {
   try {
     const db = await notion.databases.retrieve({ database_id: dailyDbId }) as any
     if (!db.properties['고객사명']) {
@@ -141,6 +156,7 @@ async function ensureCustomerNameColumn(dailyDbId: string): Promise<void> {
 }
 
 export async function getMembers(membersDbId: string): Promise<Member[]> {
+  const notion = await getNotion()
   const res = await notion.databases.query({ database_id: membersDbId })
   return res.results.map((page: any) => ({
     id: page.id,
@@ -153,6 +169,7 @@ export async function getMembers(membersDbId: string): Promise<Member[]> {
 }
 
 export async function createMember(membersDbId: string, member: Omit<Member, 'id'>): Promise<Member> {
+  const notion = await getNotion()
   const page = await notion.pages.create({
     parent: { database_id: membersDbId },
     properties: {
@@ -167,6 +184,7 @@ export async function createMember(membersDbId: string, member: Omit<Member, 'id
 }
 
 export async function updateMember(memberId: string, member: Partial<Omit<Member, 'id'>>): Promise<void> {
+  const notion = await getNotion()
   const props: Record<string, unknown> = {}
   if (member.name !== undefined) props['이름'] = { title: [{ text: { content: member.name } }] }
   if (member.position !== undefined) props['직책'] = { rich_text: [{ text: { content: member.position } }] }
@@ -177,6 +195,7 @@ export async function updateMember(memberId: string, member: Partial<Omit<Member
 }
 
 export async function deleteMember(memberId: string): Promise<void> {
+  const notion = await getNotion()
   await notion.pages.update({ page_id: memberId, archived: true })
 }
 
@@ -184,6 +203,7 @@ export async function deleteMember(memberId: string): Promise<void> {
 // 범례 관리
 // ─────────────────────────────────────────────
 export async function getLegends(legendsDbId: string): Promise<LegendItem[]> {
+  const notion = await getNotion()
   const res = await notion.databases.query({ database_id: legendsDbId })
   return res.results.map((page: any) => ({
     id: page.id,
@@ -192,6 +212,7 @@ export async function getLegends(legendsDbId: string): Promise<LegendItem[]> {
 }
 
 export async function createLegend(legendsDbId: string, label: string): Promise<LegendItem> {
+  const notion = await getNotion()
   const page = await notion.pages.create({
     parent: { database_id: legendsDbId },
     properties: { '항목명': { title: [{ text: { content: label } }] } },
@@ -200,6 +221,7 @@ export async function createLegend(legendsDbId: string, label: string): Promise<
 }
 
 export async function deleteLegend(legendId: string): Promise<void> {
+  const notion = await getNotion()
   await notion.pages.update({ page_id: legendId, archived: true })
 }
 
@@ -207,7 +229,8 @@ export async function deleteLegend(legendId: string): Promise<void> {
 // 일일보고 CRUD
 // ─────────────────────────────────────────────
 export async function getDailyReports(dailyDbId: string, authorName: string, weekStart?: string, weekEnd?: string): Promise<DailyReport[]> {
-  await ensureCustomerNameColumn(dailyDbId)
+  const notion = await getNotion()
+  await ensureCustomerNameColumn(dailyDbId, notion)
   const filters: any[] = [{ property: '작성자', rich_text: { equals: authorName } }]
   if (weekStart) filters.push({ property: '날짜', date: { on_or_after: weekStart } })
   if (weekEnd) filters.push({ property: '날짜', date: { on_or_before: weekEnd } })
@@ -232,6 +255,7 @@ export async function getDailyReports(dailyDbId: string, authorName: string, wee
 
 export async function getDailyReport(pageId: string): Promise<DailyReport | null> {
   try {
+    const notion = await getNotion()
     const page = await notion.pages.retrieve({ page_id: pageId }) as any
     return {
       id: page.id,
@@ -247,6 +271,7 @@ export async function getDailyReport(pageId: string): Promise<DailyReport | null
 }
 
 export async function createDailyReport(dailyDbId: string, report: DailyReport): Promise<string> {
+  const notion = await getNotion()
   const page = await notion.pages.create({
     parent: { database_id: dailyDbId },
     properties: {
@@ -264,6 +289,7 @@ export async function createDailyReport(dailyDbId: string, report: DailyReport):
 }
 
 export async function updateDailyReport(pageId: string, report: Partial<DailyReport>): Promise<void> {
+  const notion = await getNotion()
   const props: Record<string, unknown> = {}
   if (report.emotion !== undefined) props['감정'] = { rich_text: [{ text: { content: report.emotion } }] }
   if (report.memorableEvent !== undefined) props['기억에 남는 일'] = { rich_text: [{ text: { content: report.memorableEvent } }] }
@@ -277,15 +303,14 @@ export async function updateDailyReport(pageId: string, report: Partial<DailyRep
 // 주간보고 초안 저장/로드 및 Notion 내보내기
 // ─────────────────────────────────────────────
 
-// 주간보고 초안을 Notion 페이지 내 JSON 블록으로 저장
 export async function saveWeeklyDraft(draft: WeeklyDraft, member: Member, weeklyDbId?: string): Promise<string> {
+  const notion = await getNotion()
   const dbId = weeklyDbId || process.env.NOTION_WEEKLY_DB_ID!
-  const existing = await findExistingWeeklyPage(draft.weekStart, draft.weekEnd, member.name, dbId)
+  const existing = await findExistingWeeklyPage(draft.weekStart, draft.weekEnd, member.name, dbId, notion)
 
   const metaJson = JSON.stringify({ __type: 'weekly_draft', ...draft })
 
   if (existing) {
-    // 기존 메타 블록 업데이트
     const blocks = await notion.blocks.children.list({ block_id: existing })
     for (const block of blocks.results as any[]) {
       if (block.type === 'code') {
@@ -302,7 +327,6 @@ export async function saveWeeklyDraft(draft: WeeklyDraft, member: Member, weekly
         } catch {}
       }
     }
-    // 메타 블록이 없으면 추가
     await notion.blocks.children.append({
       block_id: existing,
       children: [{ type: 'code', code: { language: 'json', rich_text: [{ type: 'text', text: { content: metaJson } }] } } as any],
@@ -310,7 +334,6 @@ export async function saveWeeklyDraft(draft: WeeklyDraft, member: Member, weekly
     return existing
   }
 
-  // 새 페이지 생성
   const weekTitle = buildWeeklyTitle(new Date(draft.weekStart))
   const page = await notion.pages.create({
     parent: { database_id: dbId },
@@ -326,8 +349,9 @@ export async function saveWeeklyDraft(draft: WeeklyDraft, member: Member, weekly
 }
 
 export async function loadWeeklyDraft(weekStart: string, weekEnd: string, authorName: string, weeklyDbId?: string): Promise<WeeklyDraft | null> {
+  const notion = await getNotion()
   const dbId = weeklyDbId || process.env.NOTION_WEEKLY_DB_ID!
-  const pageId = await findExistingWeeklyPage(weekStart, weekEnd, authorName, dbId)
+  const pageId = await findExistingWeeklyPage(weekStart, weekEnd, authorName, dbId, notion)
   if (!pageId) return null
 
   try {
@@ -343,12 +367,11 @@ export async function loadWeeklyDraft(weekStart: string, weekEnd: string, author
   return null
 }
 
-// Notion 주간보고 페이지를 정식 포맷으로 내보내기
 export async function exportWeeklyToNotion(draft: WeeklyDraft, settings: AppSettings, member: Member): Promise<string> {
+  const notion = await getNotion()
   const authorLabel = `${settings.divisionName} > ${settings.teamName} > ${member.name} ${member.position}`
   const weekTitle = buildWeeklyTitle(new Date(draft.weekStart))
 
-  // 섹션별 블록 빌드
   const s1Blocks = buildS1(draft.section1)
   const s2Blocks = buildS2(draft.section2)
   const s3Blocks = buildS3(draft.section3, member)
@@ -374,7 +397,7 @@ export async function exportWeeklyToNotion(draft: WeeklyDraft, settings: AppSett
   const metaJson = JSON.stringify({ __type: 'weekly_draft', ...draft })
   const dbId = settings.weeklyDbId || process.env.NOTION_WEEKLY_DB_ID!
 
-  const existing = await findExistingWeeklyPage(draft.weekStart, draft.weekEnd, member.name, dbId)
+  const existing = await findExistingWeeklyPage(draft.weekStart, draft.weekEnd, member.name, dbId, notion)
 
   if (existing) {
     const blocks = await notion.blocks.children.list({ block_id: existing })
@@ -423,7 +446,7 @@ export async function exportWeeklyToNotion(draft: WeeklyDraft, settings: AppSett
   return page.id
 }
 
-async function findExistingWeeklyPage(weekStart: string, weekEnd: string, authorName: string, dbId: string): Promise<string | null> {
+async function findExistingWeeklyPage(weekStart: string, weekEnd: string, authorName: string, dbId: string, notion: Client): Promise<string | null> {
   try {
     const res = await notion.databases.query({
       database_id: dbId,
@@ -473,7 +496,6 @@ function buildS2(items: WeeklyDraft['section2']): any[] {
 
 function buildS3(items: WeeklyDraft['section3'], member: Member): any[] {
   if (!items.length) return [empty()]
-  // 고객사별 그룹핑
   const map = new Map<string, Map<string, string[]>>()
   for (const item of items) {
     if (!map.has(item.customerName)) map.set(item.customerName, new Map())
