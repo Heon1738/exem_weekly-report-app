@@ -13,29 +13,30 @@ function getWeekRange(dateStr: string) {
   return { weekStart: fmt(mon), weekEnd: fmt(fri) }
 }
 
-async function callGemini(prompt: string): Promise<string> {
-  const apiKey = process.env.GEMINI_API_KEY
-  if (!apiKey) throw new Error('GEMINI_API_KEY가 설정되지 않았습니다.')
+async function callGroq(prompt: string): Promise<string> {
+  const apiKey = process.env.GROQ_API_KEY
+  if (!apiKey) throw new Error('GROQ_API_KEY가 설정되지 않았습니다.')
 
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.2 },
-      }),
-    }
-  )
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.2,
+    }),
+  })
 
   if (!res.ok) {
     const err = await res.text()
-    throw new Error(`Gemini API 오류 (${res.status}): ${err}`)
+    throw new Error(`Groq API 오류 (${res.status}): ${err}`)
   }
 
   const data = await res.json()
-  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+  return data.choices?.[0]?.message?.content ?? ''
 }
 
 export async function POST(request: NextRequest) {
@@ -77,10 +78,9 @@ ${reportLines}
 - 모든 내용은 한국어`
 
   try {
-    const text = await callGemini(prompt)
-
+    const text = await callGroq(prompt)
     const jsonMatch = text.match(/\{[\s\S]*\}/)
-    if (!jsonMatch) throw new Error('JSON을 찾을 수 없습니다: ' + text.slice(0, 200))
+    if (!jsonMatch) throw new Error('JSON을 찾을 수 없습니다.')
 
     const generated = JSON.parse(jsonMatch[0])
 
@@ -112,9 +112,6 @@ ${reportLines}
     return NextResponse.json({ success: true, weekStart, weekEnd })
   } catch (e: any) {
     console.error('[weekly/autofill] error:', e?.message)
-    return NextResponse.json(
-      { error: e?.message?.includes('GEMINI_API_KEY') ? 'Gemini API 키가 설정되지 않았습니다.' : '주간보고 자동생성에 실패했습니다: ' + (e?.message ?? '') },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: '주간보고 자동생성에 실패했습니다: ' + (e?.message ?? '') }, { status: 500 })
   }
 }
