@@ -1,0 +1,11 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "npm run build",
+  "installCommand": "npm install",
+  "env": {
+    "NOTION_TOKEN": "@notion_token",
+    "NOTION_PARENT_PAGE_ID": "@notion_parent_page_id",
+    "NOTION_WEEKLY_DB_ID": "@notion_weekly_db_id",
+    "JWT_SECRET": "@jwt_secret"
+  }
+}

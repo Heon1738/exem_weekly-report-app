@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    color: #37352f;
+    background-color: #ffffff;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  }
+}
+
+@layer components {
+  .notion-callout {
+    @apply flex gap-3 p-3 rounded-md text-sm;
+  }
+  .notion-toggle {
+    @apply cursor-pointer select-none;
+  }
+  .btn-primary {
+    @apply bg-notion-blue text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-600 transition-colors;
+  }
+  .btn-secondary {
+    @apply bg-notion-gray-bg text-notion-text px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-200 transition-colors;
+  }
+  .btn-danger {
+    @apply bg-red-500 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-red-600 transition-colors;
+  }
+  .input-field {
+    @apply w-full border border-notion-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-notion-blue focus:border-transparent;
+  }
+  .card {
+    @apply bg-white border border-notion-border rounded-lg p-4;
+  }
+}
