@@ -44,9 +44,11 @@ function getWeekRange(dateStr: string): { weekStart: string; weekEnd: string } {
   return { weekStart: fmt(mon), weekEnd: fmt(fri) }
 }
 
-function weekLabel(weekStart: string): string {
-  const [, m, d] = weekStart.split('-').map(Number)
-  return `${m}월 ${Math.ceil((d - 1) / 7) + 1}주차`
+function weekLabel(weekStart: string, weekEnd?: string): string {
+  const [, sm, sd] = weekStart.split('-').map(Number)
+  const em = weekEnd ? parseInt(weekEnd.split('-')[1]) : sm
+  if (sm !== em) return `${em}월 1주차`
+  return `${sm}월 ${Math.ceil((sd - 1) / 7) + 1}주차`
 }
 
 function formatMD(dateStr: string): string {
@@ -115,7 +117,7 @@ function WeeklyDraftViewer({ member, weekStart, weekEnd, onClose, isAdmin }: {
       .catch(() => { setError('불러오기 실패'); setLoading(false) })
   }, [member, weekStart])
 
-  const title = `${member} · ${weekLabel(weekStart)} 주간보고 (${formatMD(weekStart)} ~ ${formatMD(weekEnd)})`
+  const title = `${member} · ${weekLabel(weekStart, weekEnd)} 주간보고 (${formatMD(weekStart)} ~ ${formatMD(weekEnd)})`
 
   return (
     <Modal title={title} onClose={onClose}>
@@ -198,7 +200,7 @@ function DailyReportsViewer({ member, weekStart, weekEnd, onClose, isAdmin }: {
       .catch(() => setLoading(false))
   }, [member, weekStart, weekEnd])
 
-  const title = `${member} · ${weekLabel(weekStart)} 일일보고 (${formatMD(weekStart)} ~ ${formatMD(weekEnd)})`
+  const title = `${member} · ${weekLabel(weekStart, weekEnd)} 일일보고 (${formatMD(weekStart)} ~ ${formatMD(weekEnd)})`
 
   return (
     <Modal title={title} onClose={onClose}>
@@ -373,7 +375,7 @@ function MemberCard({ member, onView }: { member: MemberSummary; onView: (s: Mod
               }}
             >
               {member.lastWeeklyStart}
-              <span className="ml-1 font-normal text-notion-gray text-xs">({weekLabel(member.lastWeeklyStart)})</span>
+              <span className="ml-1 font-normal text-notion-gray text-xs">({weekLabel(member.lastWeeklyStart, getWeekRange(member.lastWeeklyStart!).weekEnd)})</span>
             </button>
           ) : <span className="text-sm text-notion-gray">미작성</span>}
         </div>
@@ -413,7 +415,7 @@ function MemberCard({ member, onView }: { member: MemberSummary; onView: (s: Mod
               {weeklyList.map(w => (
                 <li key={w.weekStart} className="flex items-center justify-between gap-2 text-xs flex-wrap">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="font-medium text-notion-text">{weekLabel(w.weekStart)}</span>
+                    <span className="font-medium text-notion-text">{weekLabel(w.weekStart, w.weekEnd)}</span>
                     <span className="text-notion-gray">({formatMD(w.weekStart)} ~ {formatMD(w.weekEnd)})</span>
                     <span className="text-notion-gray">
                       · 수정: {new Date(w.updatedAt).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })}

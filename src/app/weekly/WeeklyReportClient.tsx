@@ -17,6 +17,13 @@ function getWeekRange(dateStr: string) {
   return { weekStart: fmt(mon), weekEnd: fmt(fri) }
 }
 
+function computeWeekLabel(weekStart: string, weekEnd: string): string {
+  const [, sm, sd] = weekStart.split('-').map(Number)
+  const [, em] = weekEnd.split('-').map(Number)
+  if (sm !== em) return `${em}월 1주차`
+  return `${sm}월 ${Math.ceil((sd - 1) / 7) + 1}주차`
+}
+
 function getISOWeek(date: Date): number {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
   const dayNum = d.getUTCDay() || 7
@@ -212,7 +219,7 @@ export default function WeeklyReportClient({ session }: Props) {
   const updateS5 = (i: number, key: 'description' | 'link', val: string) =>
     setDraft(d => ({ ...d, section5: d.section5.map((x, j) => j === i ? { ...x, [key]: val } : x) }))
 
-  const weekLabel = `${weekStart} ~ ${weekEnd}`
+  const weekLabel = `${computeWeekLabel(weekStart, weekEnd)}  (${weekStart} ~ ${weekEnd})`
 
   const handleSelectWeek = (ws: string) => {
     setSelectedDate(ws)
@@ -477,7 +484,8 @@ export default function WeeklyReportClient({ session }: Props) {
                       className="flex-1 text-left"
                     >
                       <p className={`text-sm font-medium ${isActive ? 'text-notion-blue' : 'text-notion-text'}`}>
-                        {item.weekStart} ~ {item.weekEnd}
+                        {computeWeekLabel(item.weekStart, item.weekEnd)}
+                        <span className="ml-2 font-normal text-xs text-notion-gray">{item.weekStart} ~ {item.weekEnd}</span>
                       </p>
                       <p className="text-xs text-notion-gray mt-0.5">
                         {isActive ? '현재 보는 주' : `저장됨: ${item.updatedAt.slice(0, 10)}`}

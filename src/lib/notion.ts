@@ -15,9 +15,15 @@ async function getClient(settings: AppSettings, memberDatabaseId?: string, membe
 }
 
 function buildPageTitle(weekStart: string): string {
-  const d = new Date(weekStart)
-  const month = d.getMonth() + 1
-  const weekOfMonth = Math.ceil((d.getDate() - 1) / 7) + 1
+  const start = new Date(weekStart)
+  const end = new Date(start)
+  end.setDate(start.getDate() + 4) // 금요일
+  // 주가 월 경계를 넘으면 새 달의 1주차로 표기
+  if (start.getMonth() !== end.getMonth()) {
+    return `${end.getMonth() + 1}월 1주차 주간보고`
+  }
+  const month = start.getMonth() + 1
+  const weekOfMonth = Math.ceil((start.getDate() - 1) / 7) + 1
   return `${month}월 ${weekOfMonth}주차 주간보고`
 }
 

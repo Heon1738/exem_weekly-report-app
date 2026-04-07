@@ -104,9 +104,11 @@ export default function DailyReportClient({ session }: Props) {
     }
   }
 
-  const fmtWeekLabel = (weekStart: string) => {
-    const [, m, d] = weekStart.split('-').map(Number)
-    return `${m}월 ${Math.ceil((d - 1) / 7) + 1}주차`
+  const fmtWeekLabel = (weekStart: string, weekEnd: string) => {
+    const [, sm, sd] = weekStart.split('-').map(Number)
+    const [, em] = weekEnd.split('-').map(Number)
+    if (sm !== em) return `${em}월 1주차`
+    return `${sm}월 ${Math.ceil((sd - 1) / 7) + 1}주차`
   }
 
   const toggleWeekSelect = (ws: string) => {
@@ -375,7 +377,7 @@ export default function DailyReportClient({ session }: Props) {
                     className="w-3.5 h-3.5 accent-notion-blue"
                   />
                   <span className="text-xs text-notion-text group-hover:text-notion-blue">
-                    {fmtWeekLabel(w.weekStart)}
+                    {fmtWeekLabel(w.weekStart, w.weekEnd)}
                     <span className="text-notion-gray ml-1">({w.count}일 작성)</span>
                     {w.weekStart === weekStart && (
                       <span className="ml-1 text-xs bg-blue-100 text-blue-600 px-1 rounded">이번 주</span>
@@ -398,7 +400,7 @@ export default function DailyReportClient({ session }: Props) {
             <div className="mb-3 space-y-0.5">
               {generateResults.map(r => (
                 <p key={r.weekStart} className={`text-xs ${r.success ? 'text-green-600' : 'text-red-500'}`}>
-                  {r.success ? '✓' : '✗'} {fmtWeekLabel(r.weekStart)} {r.success ? '생성 완료' : r.error}
+                  {r.success ? '✓' : '✗'} {fmtWeekLabel(r.weekStart, r.weekEnd)} {r.success ? '생성 완료' : r.error}
                 </p>
               ))}
               {generateResults.every(r => r.success) && (
