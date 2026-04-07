@@ -127,7 +127,7 @@ async function appendS3(notion: Client, h1Id: string, items: WeeklyDraft['sectio
     // Step 1: 고객사 bullet 추가 (children 없이)
     const bulletRes = await (notion.blocks.children.append as any)({
       block_id: h1Id,
-      children: [bulletBlock(`${customer} - ${member.name} ${member.position}`)],
+      children: [bulletBlock(customer)],
     })
     const bulletId = bulletRes.results[0].id
 
