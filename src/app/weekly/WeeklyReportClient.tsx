@@ -550,7 +550,7 @@ export default function WeeklyReportClient({ session }: Props) {
                         })
                         return Array.from(map.entries()).map(([customer, supports]) => (
                           <div key={customer} className="ml-3 mb-2">
-                            <p className="text-sm font-medium">• {customer} - {selectedMember}</p>
+                            <p className="text-sm font-medium">• {customer}</p>
                             {Array.from(supports.entries()).map(([type, items]) => (
                               <details key={type} className="ml-5 mb-1">
                                 <summary className="text-sm cursor-pointer list-none flex items-center gap-1"><span className="text-xs text-notion-gray">▶</span>{type}</summary>
