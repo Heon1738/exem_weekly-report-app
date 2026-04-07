@@ -20,6 +20,7 @@ export async function POST(request: NextRequest) {
       department: department.trim(),
       role: 'leader',
       pinHash: hashPin('1234'),
+      notionPageId: '',
     })
 
     return NextResponse.json({ success: true })

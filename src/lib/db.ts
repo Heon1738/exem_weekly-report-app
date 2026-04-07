@@ -65,6 +65,7 @@ export async function initSchema(): Promise<void> {
   // 기존 테이블 컬럼 마이그레이션 (IF NOT EXISTS로 안전하게 추가)
   await sql`ALTER TABLE legends ADD COLUMN IF NOT EXISTS display_order INTEGER DEFAULT 0`
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS notion_token TEXT NOT NULL DEFAULT ''`
+  await sql`ALTER TABLE members ADD COLUMN IF NOT EXISTS notion_page_id TEXT NOT NULL DEFAULT ''`
 
   // 기본 범례 (없을 때만)
   const [{ cnt: legendCnt }] = await sql`SELECT COUNT(*)::int as cnt FROM legends`
@@ -117,7 +118,7 @@ export async function updateAppSettings(updates: Partial<Pick<AppSettings, 'team
 // 팀원 관리
 // ─────────────────────────────────────────────
 export async function getMembers(): Promise<Member[]> {
-  const rows = await sql`SELECT id, name, position, department, role, pin_hash FROM members ORDER BY created_at`
+  const rows = await sql`SELECT id, name, position, department, role, pin_hash, notion_page_id FROM members ORDER BY created_at`
   return rows.map(r => ({
     id: r.id,
     name: r.name,
@@ -125,6 +126,7 @@ export async function getMembers(): Promise<Member[]> {
     department: r.department,
     role: r.role as 'leader' | 'member',
     pinHash: r.pin_hash,
+    notionPageId: r.notion_page_id || '',
   }))
 }
 
@@ -143,6 +145,7 @@ export async function updateMember(memberId: string, member: Partial<Omit<Member
   if (member.department !== undefined) await sql`UPDATE members SET department=${member.department} WHERE id=${memberId}`
   if (member.role !== undefined) await sql`UPDATE members SET role=${member.role} WHERE id=${memberId}`
   if (member.pinHash !== undefined) await sql`UPDATE members SET pin_hash=${member.pinHash} WHERE id=${memberId}`
+  if (member.notionPageId !== undefined) await sql`UPDATE members SET notion_page_id=${member.notionPageId} WHERE id=${memberId}`
 }
 
 export async function deleteMember(memberId: string): Promise<void> {

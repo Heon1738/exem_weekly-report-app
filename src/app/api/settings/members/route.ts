@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     const alreadyHasLeader = existingMembers.some(m => m.role === 'leader')
     if (alreadyHasLeader) return NextResponse.json({ error: '팀장은 1명만 설정할 수 있습니다. 기존 팀장을 먼저 팀원으로 변경해주세요.' }, { status: 400 })
   }
-  const member = await createMember({ name, position: position || '', department: department || '', role: role || 'member', pinHash: hashPin('1234') })
+  const member = await createMember({ name, position: position || '', department: department || '', role: role || 'member', pinHash: hashPin('1234'), notionPageId: '' })
   return NextResponse.json({ success: true, id: member.id })
 }
 
@@ -29,7 +29,7 @@ export async function PATCH(request: NextRequest) {
   const session = await getSessionFromCookies()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { id, name, position, department, role, pin } = await request.json()
+  const { id, name, position, department, role, pin, notionPageId } = await request.json()
   if (!id) return NextResponse.json({ error: 'ID가 필요합니다.' }, { status: 400 })
 
   if (session.role === 'leader') {
@@ -40,6 +40,7 @@ export async function PATCH(request: NextRequest) {
     if (department !== undefined) updates.department = department
     if (role !== undefined) updates.role = role
     if (pin !== undefined) updates.pinHash = hashPin(pin)
+    if (notionPageId !== undefined) updates.notionPageId = notionPageId
     await updateMember(id, updates as any)
   } else {
     // Member can only update their own profile (not role, not name)
@@ -50,6 +51,7 @@ export async function PATCH(request: NextRequest) {
     if (position !== undefined) updates.position = position
     if (department !== undefined) updates.department = department
     if (pin !== undefined) updates.pinHash = hashPin(pin)
+    if (notionPageId !== undefined) updates.notionPageId = notionPageId
     await updateMember(id, updates as any)
   }
   return NextResponse.json({ success: true })
