@@ -90,6 +90,20 @@ JwtPayload    { memberId, name, role }
 2. middleware.ts에서 모든 요청 검증
 3. 로그아웃: `window.location.href = '/login'` (router cache 우회)
 
+## 화면(UI) 파일
+| 화면 | 파일 |
+|------|------|
+| 로그인 | `src/app/login/page.tsx` |
+| 일일보고 | `src/app/daily/DailyReportClient.tsx` |
+| 주간보고 | `src/app/weekly/WeeklyReportClient.tsx` |
+| 환경설정 | `src/app/settings/SettingsClient.tsx` |
+| Notion 연동 설정 | `src/app/notion-setup/page.tsx` |
+| 상단 네비게이션 | `src/components/Navbar.tsx` |
+| 전역 레이아웃 | `src/app/layout.tsx` |
+| 공통 스타일 | `src/app/globals.css` |
+
+> `daily/`, `weekly/`, `settings/`는 `page.tsx`(서버·세션확인) + `Client.tsx`(실제 UI) 분리 패턴. 화면 수정은 항상 **Client.tsx** 참조.
+
 ## 주의사항
 - `db.ts` `sql`은 모듈레벨 싱글톤 (`const sql = neon(DATABASE_URL)`)
 - `auth/members` 라우트는 자체 `sql` 인스턴스 사용 (공개 라우트라 db.ts 미사용)
