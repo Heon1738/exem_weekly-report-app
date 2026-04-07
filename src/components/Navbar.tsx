@@ -5,7 +5,7 @@ import { useState } from 'react'
 
 interface NavbarProps {
   userName: string
-  role: 'leader' | 'member'
+  role: 'leader' | 'member' | 'admin'
 }
 
 export default function Navbar({ userName, role }: NavbarProps) {
@@ -19,7 +19,14 @@ export default function Navbar({ userName, role }: NavbarProps) {
     window.location.href = '/login'
   }
 
-  const links = role === 'leader'
+  const links = role === 'admin'
+    ? [
+        { href: '/daily', label: '일일보고' },
+        { href: '/weekly', label: '주간보고' },
+        { href: '/reports', label: '보고 관리' },
+        { href: '/settings', label: '환경설정' },
+      ]
+    : role === 'leader'
     ? [
         { href: '/reports', label: '보고 관리' },
         { href: '/settings', label: '환경설정' },
@@ -54,6 +61,7 @@ export default function Navbar({ userName, role }: NavbarProps) {
         <span className="text-sm text-notion-gray">
           {userName}
           {role === 'leader' && <span className="ml-1 text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded">팀장</span>}
+          {role === 'admin' && <span className="ml-1 text-xs bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded">관리자</span>}
         </span>
         <button
           onClick={handleLogout}

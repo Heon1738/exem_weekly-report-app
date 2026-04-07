@@ -12,7 +12,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   const session = await getSessionFromCookies()
-  if (!session || session.role !== 'leader') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!session || !['leader', 'admin'].includes(session.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const { name, position, department, role } = await request.json()
   if (!name) return NextResponse.json({ error: '이름은 필수입니다.' }, { status: 400 })
   const existingMembers = await getMembers()
@@ -32,8 +32,8 @@ export async function PATCH(request: NextRequest) {
   const { id, name, position, department, role, pin, notionPageId } = await request.json()
   if (!id) return NextResponse.json({ error: 'ID가 필요합니다.' }, { status: 400 })
 
-  if (session.role === 'leader') {
-    // Leader can update anything
+  if (session.role === 'leader' || session.role === 'admin') {
+    // Leader/admin can update anything
     const updates: Record<string, string> = {}
     if (name !== undefined) updates.name = name
     if (position !== undefined) updates.position = position
@@ -59,7 +59,7 @@ export async function PATCH(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   const session = await getSessionFromCookies()
-  if (!session || session.role !== 'leader') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!session || !['leader', 'admin'].includes(session.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const { id } = await request.json()
   if (!id) return NextResponse.json({ error: 'ID가 필요합니다.' }, { status: 400 })
   await deleteMember(id)

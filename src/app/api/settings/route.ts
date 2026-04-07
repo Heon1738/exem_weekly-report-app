@@ -12,7 +12,7 @@ export async function GET() {
 
 export async function PATCH(request: NextRequest) {
   const session = await getSessionFromCookies()
-  if (!session || session.role !== 'leader') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!session || !['leader', 'admin'].includes(session.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const { teamName, divisionName, notionParentPageId } = await request.json()
   await updateAppSettings({ teamName, divisionName, notionParentPageId })
   return NextResponse.json({ success: true })

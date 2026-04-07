@@ -9,25 +9,25 @@ interface MemberItem {
   name: string
   position: string
   department: string
-  role: 'leader' | 'member'
+  role: 'leader' | 'member' | 'admin'
   notionPageId: string
 }
 
 interface Props { session: JwtPayload }
 
 export default function SettingsClient({ session }: Props) {
-  const isLeader = session.role === 'leader'
+  const isLeader = session.role === 'leader' || session.role === 'admin'
   const [activeTab, setActiveTab] = useState<string>(isLeader ? 'members' : 'myinfo')
 
   // 팀원 (leader only)
   const [members, setMembers] = useState<MemberItem[]>([])
-  const [newMember, setNewMember] = useState({ name: '', position: '', department: '', role: 'member' as 'leader' | 'member' })
+  const [newMember, setNewMember] = useState({ name: '', position: '', department: '', role: 'member' as 'leader' | 'member' | 'admin' })
   const [memberLoading, setMemberLoading] = useState(false)
   const [memberMsg, setMemberMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   // 인라인 편집 (leader)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState({ position: '', department: '', role: 'member' as 'leader' | 'member', pin: '' })
+  const [editForm, setEditForm] = useState({ position: '', department: '', role: 'member' as 'leader' | 'member' | 'admin', pin: '' })
   const [editLoading, setEditLoading] = useState(false)
   const [editMsg, setEditMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
@@ -292,8 +292,9 @@ export default function SettingsClient({ session }: Props) {
                             </div>
                             <div>
                               <label className="block text-xs text-notion-gray mb-1">역할</label>
-                              <select value={editForm.role} onChange={e => setEditForm(f => ({ ...f, role: e.target.value as 'leader' | 'member' }))} className="input-field text-sm">
+                              <select value={editForm.role} onChange={e => setEditForm(f => ({ ...f, role: e.target.value as 'leader' | 'member' | 'admin' }))} className="input-field text-sm">
                                 <option value="member">팀원</option>
+                                <option value="admin">관리자</option>
                                 <option value="leader" disabled={leaderCount >= 1 && member.role !== 'leader'}>팀장{leaderCount >= 1 && member.role !== 'leader' ? ' (이미 지정됨)' : ''}</option>
                               </select>
                             </div>
@@ -319,6 +320,7 @@ export default function SettingsClient({ session }: Props) {
                               <span className="text-sm font-medium text-notion-text">{member.name}</span>
                               {member.position && <span className="text-xs text-notion-gray">{member.position}</span>}
                               {member.role === 'leader' && <span className="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded">팀장</span>}
+                              {member.role === 'admin' && <span className="text-xs bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded">관리자</span>}
                             </div>
                             {member.department && <p className="text-xs text-notion-gray mt-0.5">{member.department}</p>}
                           </div>
@@ -349,8 +351,9 @@ export default function SettingsClient({ session }: Props) {
                   </div>
                   <div>
                     <label className="block text-xs text-notion-gray mb-1">역할</label>
-                    <select value={newMember.role} onChange={e => setNewMember(p => ({ ...p, role: e.target.value as 'leader' | 'member' }))} className="input-field">
+                    <select value={newMember.role} onChange={e => setNewMember(p => ({ ...p, role: e.target.value as 'leader' | 'member' | 'admin' }))} className="input-field">
                       <option value="member">팀원</option>
+                      <option value="admin">관리자</option>
                       <option value="leader" disabled={leaderCount >= 1}>팀장{leaderCount >= 1 ? ' (이미 지정됨)' : ''}</option>
                     </select>
                   </div>

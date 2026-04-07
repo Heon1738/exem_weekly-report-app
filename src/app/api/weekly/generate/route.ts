@@ -18,7 +18,12 @@ export async function POST(request: NextRequest) {
   const draft = await request.json() as WeeklyDraft
   draft.authorName = session.name
 
-  const pageId = await exportWeeklyToNotion(draft, settings, member)
-
-  return NextResponse.json({ success: true, pageId })
+  try {
+    const pageId = await exportWeeklyToNotion(draft, settings, member)
+    return NextResponse.json({ success: true, pageId })
+  } catch (e: any) {
+    const msg = e?.message || 'Notion 내보내기에 실패했습니다.'
+    console.error('[weekly/generate] Notion export error:', msg)
+    return NextResponse.json({ error: msg }, { status: 500 })
+  }
 }

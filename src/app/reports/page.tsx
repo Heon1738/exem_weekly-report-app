@@ -5,6 +5,6 @@ import ReportsClient from './ReportsClient'
 export default async function ReportsPage() {
   const session = await getSessionFromCookies()
   if (!session) redirect('/login')
-  if (session.role !== 'leader') redirect('/daily')
+  if (session.role === 'member') redirect('/daily')
   return <ReportsClient session={session} />
 }

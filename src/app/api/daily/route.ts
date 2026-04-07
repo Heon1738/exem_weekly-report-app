@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
   const weekStart = searchParams.get('weekStart') || undefined
   const weekEnd = searchParams.get('weekEnd') || undefined
   const targetName = searchParams.get('name')
-  const authorName = session.role === 'leader' && targetName ? targetName : session.name
+  const authorName = (session.role === 'leader' || session.role === 'admin') && targetName ? targetName : session.name
 
   const reports = await getDailyReports(authorName, weekStart, weekEnd)
   return NextResponse.json(reports)

@@ -136,7 +136,7 @@ export async function getMembers(): Promise<Member[]> {
     name: r.name,
     position: r.position,
     department: r.department,
-    role: r.role as 'leader' | 'member',
+    role: r.role as 'leader' | 'member' | 'admin',
     pinHash: r.pin_hash,
     notionPageId: r.notion_page_id || '',
   }))

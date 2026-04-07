@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   const session = await getSessionFromCookies()
-  if (!session || session.role !== 'leader') {
+  if (!session || !['leader', 'admin'].includes(session.role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   const { id } = await request.json()

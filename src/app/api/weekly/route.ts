@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const date = searchParams.get('date') || new Date().toISOString().split('T')[0]
   const targetName = searchParams.get('name')
-  const authorName = session.role === 'leader' && targetName ? targetName : session.name
+  const authorName = (session.role === 'leader' || session.role === 'admin') && targetName ? targetName : session.name
   const { weekStart, weekEnd } = getWeekRange(date)
 
   const existing = await loadWeeklyDraft(weekStart, weekEnd, authorName)

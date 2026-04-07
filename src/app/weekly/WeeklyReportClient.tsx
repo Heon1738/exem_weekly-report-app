@@ -63,8 +63,10 @@ export default function WeeklyReportClient({ session }: Props) {
   const [weeklyList, setWeeklyList] = useState<{ weekStart: string; weekEnd: string; updatedAt: string }[]>([])
   const [deletingWeek, setDeletingWeek] = useState<string | null>(null)
 
+  const isPrivileged = session.role === 'leader' || session.role === 'admin'
+
   useEffect(() => {
-    if (session.role === 'leader') fetchMembers()
+    if (isPrivileged) fetchMembers()
     fetchLegends()
     fetchSettings()
   }, [])
@@ -80,7 +82,7 @@ export default function WeeklyReportClient({ session }: Props) {
   const fetchWeeklyList = async () => {
     try {
       const params = new URLSearchParams()
-      if (session.role === 'leader' && selectedMember !== session.name) params.set('name', selectedMember)
+      if (isPrivileged && selectedMember !== session.name) params.set('name', selectedMember)
       const res = await fetch(`/api/weekly/list?${params}`)
       if (res.ok) setWeeklyList(await res.json())
     } catch {}
@@ -104,7 +106,7 @@ export default function WeeklyReportClient({ session }: Props) {
     setLoading(true); setMessage(null); setNotionUrl(null)
     try {
       const params = new URLSearchParams({ date: selectedDate })
-      if (session.role === 'leader' && selectedMember !== session.name) params.set('name', selectedMember)
+      if (isPrivileged && selectedMember !== session.name) params.set('name', selectedMember)
       const res = await fetch(`/api/weekly?${params}`)
       if (res.ok) {
         const data = await res.json()
@@ -221,7 +223,7 @@ export default function WeeklyReportClient({ session }: Props) {
     setDeletingWeek(ws)
     try {
       const body: Record<string, string> = { weekStart: ws }
-      if (session.role === 'leader' && selectedMember !== session.name) body.authorName = selectedMember
+      if (isPrivileged && selectedMember !== session.name) body.authorName = selectedMember
       const res = await fetch('/api/weekly/list', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
@@ -255,7 +257,7 @@ export default function WeeklyReportClient({ session }: Props) {
             <p className="text-xs text-notion-gray mt-0.5">{weekLabel}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {session.role === 'leader' && (
+            {isPrivileged && (
               <select value={selectedMember} onChange={e => setSelectedMember(e.target.value)} className="input-field w-32 text-sm">
                 {members.map(m => <option key={m} value={m}>{m}</option>)}
               </select>
@@ -273,7 +275,7 @@ export default function WeeklyReportClient({ session }: Props) {
             <button onClick={handleSaveDraft} disabled={saving} className="btn-secondary text-sm">
               {saving ? '저장 중...' : '초안 저장'}
             </button>
-            {session.role === 'leader' && (
+            {isPrivileged && (
               <button onClick={handleBulkExport} disabled={bulkExporting} className="bg-purple-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-purple-700 disabled:opacity-50">
                 {bulkExporting ? '처리 중...' : '📤 전체 내보내기'}
               </button>

@@ -6,7 +6,7 @@ import type { WeeklyDraft } from '@/types'
 
 export async function POST(request: NextRequest) {
   const session = await getSessionFromCookies()
-  if (!session || session.role !== 'leader') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!session || !['leader', 'admin'].includes(session.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { weekStart, weekEnd } = await request.json()
   if (!weekStart || !weekEnd) return NextResponse.json({ error: 'weekStart, weekEnd 필요' }, { status: 400 })

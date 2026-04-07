@@ -293,10 +293,13 @@ function ExportSection() {
 }
 
 // ─── Member Card ──────────────────────────────────────
+const WEEK_OPTIONS = getWeekOptions(8)
+
 function MemberCard({ member, onView }: { member: MemberSummary; onView: (s: ModalState) => void }) {
   const [expanded, setExpanded] = useState(false)
   const [weeklyList, setWeeklyList] = useState<WeeklyDraftItem[] | null>(null)
   const [loading, setLoading] = useState(false)
+  const [dailyWeekIdx, setDailyWeekIdx] = useState(0)
 
   const toggle = async () => {
     if (!expanded && weeklyList === null) {
@@ -354,6 +357,29 @@ function MemberCard({ member, onView }: { member: MemberSummary; onView: (s: Mod
             </button>
           ) : <span className="text-sm text-notion-gray">미작성</span>}
         </div>
+      </div>
+
+      {/* Daily report week selector */}
+      <div className="flex items-center gap-2 mt-3 pt-3 border-t border-notion-border flex-wrap">
+        <span className="text-xs text-notion-gray shrink-0">주간 일일보고 조회:</span>
+        <select
+          value={dailyWeekIdx}
+          onChange={e => setDailyWeekIdx(Number(e.target.value))}
+          className="input-field text-xs py-1 flex-1 min-w-0"
+        >
+          {WEEK_OPTIONS.map((w, i) => (
+            <option key={w.weekStart} value={i}>{w.label}</option>
+          ))}
+        </select>
+        <button
+          className="shrink-0 text-xs text-notion-blue hover:underline"
+          onClick={() => {
+            const w = WEEK_OPTIONS[dailyWeekIdx]
+            onView({ type: 'daily', member: member.name, weekStart: w.weekStart, weekEnd: w.weekEnd })
+          }}
+        >
+          일일보고 보기
+        </button>
       </div>
 
       {/* Expanded weekly list */}

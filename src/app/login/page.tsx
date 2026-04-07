@@ -115,7 +115,7 @@ export default function LoginPage() {
           setChangingPin(true)
           setPin('')
         } else {
-          window.location.href = data.role === 'leader' ? '/reports' : '/daily'
+          window.location.href = (data.role === 'leader' || data.role === 'admin') ? '/reports' : '/daily'
         }
       } else {
         setError(data.error || '로그인에 실패했습니다.')
@@ -142,7 +142,7 @@ export default function LoginPage() {
         body: JSON.stringify({ currentPin, newPin }),
       })
       if (res.ok) {
-        window.location.href = loginRole === 'leader' ? '/reports' : '/daily'
+        window.location.href = (loginRole === 'leader' || loginRole === 'admin') ? '/reports' : '/daily'
       } else {
         const data = await res.json()
         setError(data.error || '패스워드 변경에 실패했습니다.')
