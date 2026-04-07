@@ -3,35 +3,32 @@ import { Client } from '@notionhq/client'
 import { getNotionConfig } from './notion-config'
 import type { Member, AppSettings, WeeklyDraft } from '@/types'
 
-async function getClient(settings: AppSettings, memberPageId?: string, memberToken?: string): Promise<{ notion: Client; parentPageId: string }> {
+async function getClient(settings: AppSettings, memberDatabaseId?: string, memberToken?: string): Promise<{ notion: Client; databaseId: string }> {
   // 토큰 우선순위: 개인 토큰 → 팀 DB 저장값 → 쿠키 → 환경변수
   const config = await getNotionConfig()
   const token = memberToken || settings.notionToken || config?.token || process.env.NOTION_TOKEN
   if (!token) throw new Error('Notion 토큰이 설정되지 않았습니다. 환경설정 → 내 정보에서 개인 Notion 토큰을 입력하거나, 팀장에게 팀 토큰 설정을 요청하세요.')
-  // 페이지 ID 우선순위: 개인 페이지 ID → 팀 공용 페이지 ID → 쿠키
-  const parentPageId = memberPageId || settings.notionParentPageId || config?.parentPageId || ''
-  if (!parentPageId) throw new Error('Notion 페이지 ID가 설정되지 않았습니다. 환경설정 → 내 정보에서 개인 Notion 페이지 ID를 입력해주세요.')
-  return { notion: new Client({ auth: token }), parentPageId }
+  // DB ID 우선순위: 개인 DB ID → 팀 공용 DB ID → 쿠키
+  const databaseId = memberDatabaseId || settings.notionParentPageId || config?.parentPageId || ''
+  if (!databaseId) throw new Error('Notion DB ID가 설정되지 않았습니다. 환경설정 → 내 정보에서 개인 Notion 주간보고 DB ID를 입력해주세요.')
+  return { notion: new Client({ auth: token }), databaseId }
 }
 
-function buildPageTitle(weekStart: string, memberName: string): string {
+function buildPageTitle(weekStart: string): string {
   const d = new Date(weekStart)
   const month = d.getMonth() + 1
   const weekOfMonth = Math.ceil((d.getDate() - 1) / 7) + 1
-  return `${month}월 ${weekOfMonth}주차 주간보고 - ${memberName}`
+  return `${month}월 ${weekOfMonth}주차 주간보고`
 }
 
-async function findExistingPage(title: string, parentPageId: string, notion: Client): Promise<string | null> {
+async function findExistingEntry(title: string, databaseId: string, notion: Client): Promise<string | null> {
   try {
-    const res = await notion.search({ query: title, filter: { property: 'object', value: 'page' }, page_size: 20 })
-    const normalizedParent = parentPageId.replace(/-/g, '')
-    const match = (res.results as any[]).find(p => {
-      const pParent = (p.parent?.page_id || '').replace(/-/g, '')
-      const titleArr = p.properties?.title?.title || []
-      const pTitle = titleArr.map((t: any) => t.plain_text).join('')
-      return pParent === normalizedParent && pTitle === title
+    const res = await (notion.databases.query as any)({
+      database_id: databaseId,
+      filter: { property: '주간보고서 (클릭)', title: { equals: title } },
+      page_size: 1,
     })
-    return match?.id || null
+    return (res.results[0] as any)?.id || null
   } catch { return null }
 }
 
@@ -149,26 +146,34 @@ async function appendS3(notion: Client, h1Id: string, items: WeeklyDraft['sectio
 
 async function upsertPage(
   notion: Client,
-  parentPageId: string,
+  databaseId: string,
   pageTitle: string,
   draft: WeeklyDraft,
   settings: AppSettings,
   member: Member,
 ): Promise<string> {
   let pageId: string
+  const today = new Date().toISOString().split('T')[0]
+  const dbProperties = {
+    '주간보고서 (클릭)': { title: [{ type: 'text', text: { content: pageTitle } }] },
+    '보고 기간': { date: { start: draft.weekStart, end: draft.weekEnd } },
+    '작성 일자': { date: { start: today } },
+    '작성자': { rich_text: [{ type: 'text', text: { content: member.name } }] },
+  }
 
-  const existing = await findExistingPage(pageTitle, parentPageId, notion)
+  const existing = await findExistingEntry(pageTitle, databaseId, notion)
   if (existing) {
-    // 기존 페이지의 모든 블록 삭제
+    // 기존 엔트리 속성 갱신 + 블록 초기화
+    await (notion.pages.update as any)({ page_id: existing, properties: dbProperties })
     const blocks = await notion.blocks.children.list({ block_id: existing })
     for (const block of blocks.results) {
       await notion.blocks.update({ block_id: block.id, archived: true } as any)
     }
     pageId = existing
   } else {
-    const page = await notion.pages.create({
-      parent: { page_id: parentPageId } as any,
-      properties: { title: [{ text: { content: pageTitle } }] } as any,
+    const page = await (notion.pages.create as any)({
+      parent: { database_id: databaseId },
+      properties: dbProperties,
     })
     pageId = page.id
   }
@@ -223,9 +228,9 @@ async function upsertPage(
 // ── 공개 API ──
 
 export async function exportWeeklyToNotion(draft: WeeklyDraft, settings: AppSettings, member: Member): Promise<string> {
-  const { notion, parentPageId } = await getClient(settings, member.notionPageId || undefined, member.notionToken || undefined)
-  const pageTitle = buildPageTitle(draft.weekStart, member.name)
-  return upsertPage(notion, parentPageId, pageTitle, draft, settings, member)
+  const { notion, databaseId } = await getClient(settings, member.notionPageId || undefined, member.notionToken || undefined)
+  const pageTitle = buildPageTitle(draft.weekStart)
+  return upsertPage(notion, databaseId, pageTitle, draft, settings, member)
 }
 
 export async function exportAllMembersWeeklyToNotion(
@@ -234,18 +239,18 @@ export async function exportAllMembersWeeklyToNotion(
   draftsMap: Map<string, WeeklyDraft>,
   settings: AppSettings,
 ): Promise<{ name: string; pageId: string; error?: string }[]> {
-  const { notion, parentPageId } = await getClient(settings)
+  const { notion, databaseId } = await getClient(settings)
   const results: { name: string; pageId: string; error?: string }[] = []
   for (const member of membersData) {
     const draft = draftsMap.get(member.name)
     if (!draft) { results.push({ name: member.name, pageId: '', error: '작성된 주간보고 없음' }); continue }
     try {
-      // 개인 토큰/페이지 ID가 있으면 개인 클라이언트 사용
+      // 개인 토큰/DB ID가 있으면 개인 클라이언트 사용
       const client = member.notionToken || member.notionPageId
         ? await getClient(settings, member.notionPageId || undefined, member.notionToken || undefined)
-        : { notion, parentPageId }
-      const pageTitle = buildPageTitle(weekStart, member.name)
-      const pageId = await upsertPage(client.notion, client.parentPageId, pageTitle, draft, settings, member)
+        : { notion, databaseId }
+      const pageTitle = buildPageTitle(weekStart)
+      const pageId = await upsertPage(client.notion, client.databaseId, pageTitle, draft, settings, member)
       results.push({ name: member.name, pageId })
     } catch (e: any) {
       results.push({ name: member.name, pageId: '', error: e.message || '내보내기 실패' })

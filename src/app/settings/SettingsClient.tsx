@@ -258,18 +258,18 @@ export default function SettingsClient({ session }: Props) {
                 </div>
               </div>
               <div>
-                <label className="block text-xs text-notion-gray mb-1">개인 Notion 페이지 ID <span className="text-notion-gray font-normal">(주간보고 내보내기 대상)</span></label>
+                <label className="block text-xs text-notion-gray mb-1">개인 Notion 주간보고 DB ID <span className="text-notion-gray font-normal">(내보내기 대상 데이터베이스)</span></label>
                 <input value={selfForm.notionPageId} onChange={e => setSelfForm(f => ({ ...f, notionPageId: e.target.value }))}
-                  className="input-field font-mono text-xs" placeholder="예: 1f33d7eebe418013ac30dee162d0d7f2" />
+                  className="input-field font-mono text-xs" placeholder="예: 1f33d7eebe4181eaa60ad290ab162b40" />
                 <div className="mt-1.5 text-xs text-notion-gray space-y-1">
-                  <p>입력하면 주간보고 내보내기 시 이 페이지로 내보냅니다. 비워두면 팀 공용 페이지로 내보냅니다.</p>
-                  <p className="font-medium text-notion-text">페이지 ID 찾는 방법:</p>
+                  <p>주간보고가 저장되는 Notion 데이터베이스의 ID. 비워두면 팀 공용 DB로 내보냅니다.</p>
+                  <p className="font-medium text-notion-text">DB ID 찾는 방법:</p>
                   <ol className="list-decimal list-inside space-y-0.5 pl-1">
-                    <li>내 Notion에서 주간보고 저장할 페이지 생성</li>
-                    <li>해당 페이지 우상단 <span className="font-mono bg-notion-gray-bg px-0.5 rounded">···</span> → Connections → 팀 Integration 연결</li>
-                    <li>페이지 URL 마지막 32자리 영숫자 복사 후 위에 입력</li>
+                    <li>내 Notion에서 주간보고 DB 열기</li>
+                    <li>해당 DB 우상단 <span className="font-mono bg-notion-gray-bg px-0.5 rounded">···</span> → Connections → 팀 Integration 연결</li>
+                    <li>DB 페이지 URL에서 <span className="font-mono">?v=</span> 앞의 32자리 복사</li>
                   </ol>
-                  <p className="font-mono bg-notion-gray-bg px-1.5 py-0.5 rounded">notion.so/제목-<span className="font-bold text-notion-text">1f33d7ee...</span></p>
+                  <p className="font-mono bg-notion-gray-bg px-1.5 py-0.5 rounded">notion.so/<span className="font-bold text-notion-text">1f33d7ee...</span>?v=...</p>
                 </div>
               </div>
               {selfMsg && <p className={`text-sm ${selfMsg.type === 'success' ? 'text-green-600' : 'text-red-500'}`}>{selfMsg.text}</p>}
