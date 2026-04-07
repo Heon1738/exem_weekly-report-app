@@ -14,7 +14,7 @@ const EMOTION_OPTIONS = [
   { emoji: '🔥', label: '열정' },
 ]
 
-async function callGroq(prompt: string): Promise<string> {
+async function callGroq(messages: { role: string; content: string }[]): Promise<string> {
   const apiKey = process.env.GROQ_API_KEY
   if (!apiKey) throw new Error('GROQ_API_KEY가 설정되지 않았습니다.')
 
@@ -26,8 +26,9 @@ async function callGroq(prompt: string): Promise<string> {
     },
     body: JSON.stringify({
       model: 'llama-3.3-70b-versatile',
-      messages: [{ role: 'user', content: prompt }],
+      messages,
       temperature: 0.1,
+      max_tokens: 200,
     }),
   })
 
@@ -49,25 +50,46 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: '하루 느낀점을 입력해주세요.' }, { status: 400 })
   }
 
-  const emotionList = EMOTION_OPTIONS.map(e => `${e.emoji}=${e.label}`).join(', ')
+  const emotionList = EMOTION_OPTIONS.map(e => `${e.emoji}(${e.label})`).join(' / ')
 
-  const prompt = `직장인의 하루 일기를 분석해서 JSON으로 반환하세요.
-JSON 외 다른 텍스트는 절대 출력하지 마세요. 마크다운 코드블록도 사용하지 마세요.
+  const systemMessage = `당신은 IT 직장인의 하루 업무 일기에서 핵심 정보를 추출하는 분석가입니다.
+반드시 순수 JSON만 출력합니다. 마크다운·코드블록·설명 텍스트는 절대 출력하지 않습니다.`
 
-일기: ${dailyFeeling}
+  const userMessage = `아래 [일기]를 읽고 세 가지 항목을 추출하여 JSON으로 반환하세요.
 
-반환할 JSON (정확히 이 형식):
-{"emotion":"이모지","memorableEvent":"요약","hardThing":"요약"}
+[추출 규칙]
 
-규칙:
-- emotion: ${emotionList} 중 하나의 이모지만 선택. 전체 맥락에서 가장 지배적인 감정을 선택
-- memorableEvent: 오늘 완료한 업무 또는 성과를 핵심만 담아 1문장으로 작성. 명사형 또는 명사+완료 형식으로 종결 (예: "A사 DB 성능 점검 완료", "B 시스템 배포 지원"). 고객사명·시스템명 등 구체적 명칭 포함. 어려움·문제 상황 절대 포함 금지. 구어체 금지
-- hardThing: memorableEvent와 완전히 다른 내용으로, 어려웠던 점·문제 상황·미해결 이슈만 1문장으로 작성. 명사형 종결 (예: "C 모듈 오류 미해결", "응답 지연 원인 불명확"). 해당 내용이 없으면 반드시 빈 문자열 "". 구어체 금지
-- 모든 내용은 한국어로 작성
-- 일기에 언급된 구체적인 이름(고객사, 시스템, 도구 등)은 그대로 사용`
+emotion:
+- 일기 전반의 지배적인 감정 1개를 이모지로 선택
+- 선택지: ${emotionList}
+- 성과·완료·칭찬 → 💪 또는 😊 / 막힘·답답 → 😤 / 피로 → 😴 / 고민·복잡 → 🤔 / 아쉬움·실수 → 😔 / 무난 → 😐
+
+memorableEvent:
+- 오늘 업무 중 가장 임팩트 있는 단일 사건 1가지만 추출 (전체 요약 금지)
+- 완료된 지원·점검·배포·분석 등 긍정적 성과 우선
+- 형식: [고객사/시스템명] [행위] [결과] — 명사형 종결
+- 예시: "A사 Oracle DB 성능 점검 완료" / "B시스템 신규 배포 지원 및 정상 확인" / "C모듈 장애 원인 분석 완료"
+- 구어체·주어·조사 사용 금지
+
+hardThing:
+- 어려움·문제·미해결 이슈·병목 중 가장 심각한 것 1가지만 추출
+- memorableEvent와 중복 금지
+- 형식: [대상] [문제 상황] — 명사형 종결
+- 예시: "C모듈 응답지연 원인 미파악" / "고객사 접근 권한 미확보" / "배포 후 간헐적 오류 재현 불가"
+- 해당 내용이 없으면 반드시 빈 문자열 ""
+- 구어체·주어·조사 사용 금지
+
+[일기]
+${dailyFeeling}
+
+[출력]
+{"emotion":"이모지","memorableEvent":"내용","hardThing":"내용 또는 빈문자열"}`
 
   try {
-    const text = await callGroq(prompt)
+    const text = await callGroq([
+      { role: 'system', content: systemMessage },
+      { role: 'user', content: userMessage },
+    ])
     const jsonMatch = text.match(/\{[\s\S]*?\}/)
     if (!jsonMatch) throw new Error('JSON을 찾을 수 없습니다.')
 
