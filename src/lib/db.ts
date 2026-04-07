@@ -88,7 +88,13 @@ export async function initSchema(): Promise<void> {
 // ─────────────────────────────────────────────
 export async function getAppSettings(): Promise<AppSettings | null> {
   try {
-    const rows = await sql`SELECT team_name, division_name, notion_export_db_id, notion_token FROM app_settings LIMIT 1`
+    let rows
+    try {
+      rows = await sql`SELECT team_name, division_name, notion_export_db_id, notion_token FROM app_settings LIMIT 1`
+    } catch {
+      await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS notion_token TEXT NOT NULL DEFAULT ''`
+      rows = await sql`SELECT team_name, division_name, notion_export_db_id, notion_token FROM app_settings LIMIT 1`
+    }
     if (!rows.length) return null
     const r = rows[0]
     return {
@@ -118,7 +124,13 @@ export async function updateAppSettings(updates: Partial<Pick<AppSettings, 'team
 // 팀원 관리
 // ─────────────────────────────────────────────
 export async function getMembers(): Promise<Member[]> {
-  const rows = await sql`SELECT id, name, position, department, role, pin_hash, notion_page_id FROM members ORDER BY created_at`
+  let rows
+  try {
+    rows = await sql`SELECT id, name, position, department, role, pin_hash, notion_page_id FROM members ORDER BY created_at`
+  } catch {
+    await sql`ALTER TABLE members ADD COLUMN IF NOT EXISTS notion_page_id TEXT NOT NULL DEFAULT ''`
+    rows = await sql`SELECT id, name, position, department, role, pin_hash, notion_page_id FROM members ORDER BY created_at`
+  }
   return rows.map(r => ({
     id: r.id,
     name: r.name,
