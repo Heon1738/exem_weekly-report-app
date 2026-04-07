@@ -123,7 +123,7 @@ function WeeklyDraftViewer({ member, weekStart, weekEnd, onClose, isAdmin }: {
     <Modal title={title} onClose={onClose}>
       {isAdmin && (
         <div className="mb-3 p-2 rounded bg-yellow-50 text-yellow-800 text-xs border border-yellow-200">
-          관리자 계정은 보고 내용을 열람할 수 없습니다.
+          이 계정은 보고 내용을 열람할 수 없습니다.
         </div>
       )}
       {loading ? <p className="text-notion-gray">불러오는 중...</p>
@@ -206,7 +206,7 @@ function DailyReportsViewer({ member, weekStart, weekEnd, onClose, isAdmin }: {
     <Modal title={title} onClose={onClose}>
       {isAdmin && (
         <div className="mb-3 p-2 rounded bg-yellow-50 text-yellow-800 text-xs border border-yellow-200">
-          관리자 계정은 보고 내용을 열람할 수 없습니다.
+          이 계정은 보고 내용을 열람할 수 없습니다.
         </div>
       )}
       {loading ? <p className="text-notion-gray">불러오는 중...</p>
@@ -271,7 +271,7 @@ function ExportSection({ isAdmin }: { isAdmin: boolean }) {
       <p className="text-sm font-semibold text-notion-text mb-3">📤 전체 Notion 내보내기</p>
       {isAdmin && (
         <p className="text-xs text-yellow-700 bg-yellow-50 border border-yellow-200 rounded px-2 py-1.5 mb-3">
-          관리자 계정은 Notion 내보내기를 사용할 수 없습니다.
+          이 계정은 Notion 내보내기를 사용할 수 없습니다.
         </p>
       )}
       <div className="flex items-center gap-3 flex-wrap">
@@ -443,7 +443,7 @@ function MemberCard({ member, onView }: { member: MemberSummary; onView: (s: Mod
 
 // ─── Main ─────────────────────────────────────────────
 export default function ReportsClient({ session }: { session: JwtPayload }) {
-  const isAdmin = session.role === 'admin'
+  const isAdmin = session.role === 'admin' || session.role === 'test'
   const [members, setMembers] = useState<MemberSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState<ModalState | null>(null)

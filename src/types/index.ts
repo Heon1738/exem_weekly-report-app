@@ -4,7 +4,7 @@ export interface Member {
   name: string
   position: string
   department: string
-  role: 'leader' | 'member' | 'admin'
+  role: 'leader' | 'member' | 'admin' | 'test'
   pinHash: string
   notionPageId: string   // 개인 Notion 페이지 ID (비어있으면 팀 공용 페이지 사용)
   notionToken: string    // 개인 Notion Integration 토큰 (비어있으면 팀 공용 토큰 사용)
@@ -71,7 +71,7 @@ export interface WeeklyDraft {
 export interface JwtPayload {
   memberId: string
   name: string
-  role: 'leader' | 'member' | 'admin'
+  role: 'leader' | 'member' | 'admin' | 'test'
 }
 
 // 이모지 감정 목록

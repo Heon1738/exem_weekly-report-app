@@ -5,7 +5,7 @@ import { useState } from 'react'
 
 interface NavbarProps {
   userName: string
-  role: 'leader' | 'member' | 'admin'
+  role: 'leader' | 'member' | 'admin' | 'test'
 }
 
 export default function Navbar({ userName, role }: NavbarProps) {
@@ -20,7 +20,7 @@ export default function Navbar({ userName, role }: NavbarProps) {
     window.location.href = '/login'
   }
 
-  const links = role === 'admin'
+  const links = role === 'admin' || role === 'test'
     ? [
         { href: '/daily', label: '일일보고' },
         { href: '/weekly', label: '주간보고' },
@@ -86,6 +86,9 @@ export default function Navbar({ userName, role }: NavbarProps) {
               {role === 'admin' && (
                 <span className="text-xs bg-purple-50 text-purple-600 border border-purple-100 px-1.5 py-0.5 rounded-full font-medium">관리자</span>
               )}
+              {role === 'test' && (
+                <span className="text-xs bg-gray-100 text-gray-500 border border-gray-200 px-1.5 py-0.5 rounded-full font-medium">테스트</span>
+              )}
             </div>
             <button
               onClick={handleLogout}
@@ -118,6 +121,7 @@ export default function Navbar({ userName, role }: NavbarProps) {
             <span className="text-sm font-medium text-notion-text">{userName}</span>
             {role === 'leader' && <span className="text-xs bg-blue-50 text-blue-600 border border-blue-100 px-1.5 py-0.5 rounded-full">팀장</span>}
             {role === 'admin' && <span className="text-xs bg-purple-50 text-purple-600 border border-purple-100 px-1.5 py-0.5 rounded-full">관리자</span>}
+            {role === 'test' && <span className="text-xs bg-gray-100 text-gray-500 border border-gray-200 px-1.5 py-0.5 rounded-full">테스트</span>}
           </div>
           {links.map(link => {
             const active = pathname.startsWith(link.href)

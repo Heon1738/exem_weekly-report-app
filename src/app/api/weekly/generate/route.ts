@@ -7,6 +7,7 @@ import type { WeeklyDraft } from '@/types'
 export async function POST(request: NextRequest) {
   const session = await getSessionFromCookies()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (session.role === 'test') return NextResponse.json({ error: 'test 계정은 Notion 내보내기를 사용할 수 없습니다.' }, { status: 403 })
 
   const settings = await getAppSettings()
   if (!settings) return NextResponse.json({ error: '설정 없음' }, { status: 500 })

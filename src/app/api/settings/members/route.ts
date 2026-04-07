@@ -28,6 +28,7 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const session = await getSessionFromCookies()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (session.role === 'test') return NextResponse.json({ error: 'test 계정은 수정할 수 없습니다.' }, { status: 403 })
 
   const { id, name, position, department, role, pin, notionPageId, notionToken } = await request.json()
   if (!id) return NextResponse.json({ error: 'ID가 필요합니다.' }, { status: 400 })

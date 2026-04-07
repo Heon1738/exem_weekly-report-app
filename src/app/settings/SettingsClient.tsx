@@ -17,6 +17,7 @@ interface Props { session: JwtPayload }
 
 export default function SettingsClient({ session }: Props) {
   const isLeader = session.role === 'leader' || session.role === 'admin'
+  const isTest = session.role === 'test'
   const [activeTab, setActiveTab] = useState<string>(isLeader ? 'members' : 'myinfo')
 
   // 팀원 (leader only)
@@ -233,25 +234,28 @@ export default function SettingsClient({ session }: Props) {
                 <label className="block text-xs text-notion-gray mb-1">이름 (변경 불가)</label>
                 <input value={session.name} disabled className="input-field bg-notion-gray-bg cursor-not-allowed" />
               </div>
+              {isTest && (
+                <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded p-2">테스트 계정은 정보 수정이 불가합니다.</p>
+              )}
               <div>
                 <label className="block text-xs text-notion-gray mb-1">직책</label>
                 <input value={selfForm.position} onChange={e => setSelfForm(f => ({ ...f, position: e.target.value }))}
-                  className="input-field" placeholder="예: 과장, 수석 컨설턴트" />
+                  className={`input-field ${isTest ? 'bg-notion-gray-bg cursor-not-allowed' : ''}`} placeholder="예: 과장, 수석 컨설턴트" disabled={isTest} />
               </div>
               <div>
                 <label className="block text-xs text-notion-gray mb-1">소속</label>
                 <input value={selfForm.department} onChange={e => setSelfForm(f => ({ ...f, department: e.target.value }))}
-                  className="input-field" placeholder="예: 통합기술본부 > 통합기술연구3팀" />
+                  className={`input-field ${isTest ? 'bg-notion-gray-bg cursor-not-allowed' : ''}`} placeholder="예: 통합기술본부 > 통합기술연구3팀" disabled={isTest} />
               </div>
               <div>
                 <label className="block text-xs text-notion-gray mb-1">새 패스워드 <span className="text-notion-gray font-normal">(변경 시에만 입력, 4자리 이상)</span></label>
                 <input type="password" value={selfForm.pin} onChange={e => setSelfForm(f => ({ ...f, pin: e.target.value }))}
-                  className="input-field" placeholder="변경하지 않으면 비워두세요" />
+                  className={`input-field ${isTest ? 'bg-notion-gray-bg cursor-not-allowed' : ''}`} placeholder="변경하지 않으면 비워두세요" disabled={isTest} />
               </div>
               <div>
                 <label className="block text-xs text-notion-gray mb-1">개인 Notion Integration 토큰 <span className="text-notion-gray font-normal">(개인 워크스페이스 사용 시)</span></label>
                 <input type="password" value={selfForm.notionToken} onChange={e => setSelfForm(f => ({ ...f, notionToken: e.target.value }))}
-                  className="input-field font-mono text-xs" placeholder="secret_xxxxxxxxxxxxxxxxxxxx" />
+                  className={`input-field font-mono text-xs ${isTest ? 'bg-notion-gray-bg cursor-not-allowed' : ''}`} placeholder="secret_xxxxxxxxxxxxxxxxxxxx" disabled={isTest} />
                 <div className="mt-1 text-xs text-notion-gray space-y-0.5">
                   <p>팀과 다른 워크스페이스를 사용하는 경우에만 입력. 비워두면 팀 공용 토큰을 사용합니다.</p>
                   <p>발급: <span className="font-mono">notion.so/my-integrations</span> → Internal Integration 생성 → Secret 복사</p>
@@ -260,7 +264,7 @@ export default function SettingsClient({ session }: Props) {
               <div>
                 <label className="block text-xs text-notion-gray mb-1">개인 Notion 주간보고 DB ID <span className="text-notion-gray font-normal">(내보내기 대상 데이터베이스)</span></label>
                 <input value={selfForm.notionPageId} onChange={e => setSelfForm(f => ({ ...f, notionPageId: e.target.value }))}
-                  className="input-field font-mono text-xs" placeholder="예: 1f33d7eebe4181eaa60ad290ab162b40" />
+                  className={`input-field font-mono text-xs ${isTest ? 'bg-notion-gray-bg cursor-not-allowed' : ''}`} placeholder="예: 1f33d7eebe4181eaa60ad290ab162b40" disabled={isTest} />
                 <div className="mt-1.5 text-xs text-notion-gray space-y-1">
                   <p>주간보고가 저장되는 Notion 데이터베이스의 ID. 비워두면 팀 공용 DB로 내보냅니다.</p>
                   <p className="font-medium text-notion-text">DB ID 찾는 방법:</p>
@@ -273,7 +277,7 @@ export default function SettingsClient({ session }: Props) {
                 </div>
               </div>
               {selfMsg && <p className={`text-sm ${selfMsg.type === 'success' ? 'text-green-600' : 'text-red-500'}`}>{selfMsg.text}</p>}
-              <button type="submit" disabled={selfLoading} className="btn-primary">
+              <button type="submit" disabled={selfLoading || isTest} className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed">
                 {selfLoading ? '저장 중...' : '저장'}
               </button>
             </form>
@@ -397,10 +401,12 @@ export default function SettingsClient({ session }: Props) {
                 ))}
               </div>
             )}
-            <form onSubmit={handleAddLegend} className="flex gap-2">
-              <input value={newLegend} onChange={e => setNewLegend(e.target.value)} className="input-field flex-1" placeholder="새 범례 입력 (예: DB 점검)" />
-              <button type="submit" disabled={legendLoading} className="btn-primary flex-shrink-0">{legendLoading ? '추가 중...' : '추가'}</button>
-            </form>
+            {!isTest && (
+              <form onSubmit={handleAddLegend} className="flex gap-2">
+                <input value={newLegend} onChange={e => setNewLegend(e.target.value)} className="input-field flex-1" placeholder="새 범례 입력 (예: DB 점검)" />
+                <button type="submit" disabled={legendLoading} className="btn-primary flex-shrink-0">{legendLoading ? '추가 중...' : '추가'}</button>
+              </form>
+            )}
             {legendMsg && <p className={`text-sm mt-2 ${legendMsg.type === 'success' ? 'text-green-600' : 'text-red-500'}`}>{legendMsg.text}</p>}
           </div>
         )}

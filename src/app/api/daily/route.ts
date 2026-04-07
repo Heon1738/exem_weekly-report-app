@@ -20,6 +20,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const session = await getSessionFromCookies()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (session.role === 'test') return NextResponse.json({ error: 'test 계정은 저장할 수 없습니다.' }, { status: 403 })
 
   const body = await request.json() as DailyReport
   body.authorName = session.name

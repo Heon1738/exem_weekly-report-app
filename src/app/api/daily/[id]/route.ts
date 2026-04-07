@@ -19,6 +19,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
   const session = await getSessionFromCookies()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (session.role === 'test') return NextResponse.json({ error: 'test 계정은 저장할 수 없습니다.' }, { status: 403 })
 
   const report = await getDailyReport(params.id)
   if (!report) return NextResponse.json({ error: '보고서를 찾을 수 없습니다.' }, { status: 404 })
@@ -42,6 +43,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
   const session = await getSessionFromCookies()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (session.role === 'test') return NextResponse.json({ error: 'test 계정은 삭제할 수 없습니다.' }, { status: 403 })
 
   const report = await getDailyReport(params.id)
   if (!report) return NextResponse.json({ error: '보고서를 찾을 수 없습니다.' }, { status: 404 })

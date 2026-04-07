@@ -71,6 +71,7 @@ export default function WeeklyReportClient({ session }: Props) {
   const [deletingWeek, setDeletingWeek] = useState<string | null>(null)
 
   const isPrivileged = session.role === 'leader' || session.role === 'admin'
+  const isTest = session.role === 'test'
 
   useEffect(() => {
     if (isPrivileged) fetchMembers()
@@ -279,7 +280,7 @@ export default function WeeklyReportClient({ session }: Props) {
               }}
               className="input-field w-40 text-sm"
             />
-            <button onClick={handleSaveDraft} disabled={saving} className="btn-secondary text-sm">
+            <button onClick={handleSaveDraft} disabled={saving || isTest} className="btn-secondary text-sm disabled:opacity-50 disabled:cursor-not-allowed" title={isTest ? '테스트 계정은 저장 불가' : undefined}>
               {saving ? '저장 중...' : '초안 저장'}
             </button>
             {isPrivileged && (
@@ -287,11 +288,17 @@ export default function WeeklyReportClient({ session }: Props) {
                 {bulkExporting ? '처리 중...' : '📤 전체 내보내기'}
               </button>
             )}
-            <button onClick={handleExport} disabled={exporting} className="bg-green-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-700 disabled:opacity-50">
+            <button onClick={handleExport} disabled={exporting || isTest} className="bg-green-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed" title={isTest ? '테스트 계정은 내보내기 불가' : undefined}>
               {exporting ? '처리 중...' : '📤 Notion 내보내기'}
             </button>
           </div>
         </div>
+
+        {isTest && (
+          <div className="mb-4 p-3 rounded-md text-sm bg-amber-50 text-amber-700 border border-amber-200">
+            테스트 계정은 초안 저장 및 Notion 내보내기를 사용할 수 없습니다.
+          </div>
+        )}
 
         {message && (
           <div className={`mb-4 p-3 rounded-md text-sm ${message.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>

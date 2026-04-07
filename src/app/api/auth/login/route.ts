@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '패스워드가 올바르지 않습니다.' }, { status: 401 })
     }
 
-    const mustChangePin = member.pinHash === hashPin('1234')
+    const mustChangePin = member.pinHash === hashPin('1234') && member.role !== 'test'
 
     const token = await createSession({
       memberId: member.id,

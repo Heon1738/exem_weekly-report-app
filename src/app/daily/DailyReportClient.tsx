@@ -30,6 +30,7 @@ function getWeekRange(dateStr: string) {
 
 export default function DailyReportClient({ session }: Props) {
   const router = useRouter()
+  const isTest = session.role === 'test'
   const [form, setForm] = useState<DailyReport>(emptyForm(session.name))
   const [editingId, setEditingId] = useState<string | null>(null)
   const [recentReports, setRecentReports] = useState<DailyReport[]>([])
@@ -238,9 +239,10 @@ export default function DailyReportClient({ session }: Props) {
             {editingId && (
               <button onClick={handleCancelEdit} className="btn-secondary">취소</button>
             )}
-            <button onClick={handleSave} disabled={saving} className="btn-primary">
+            <button onClick={handleSave} disabled={saving || isTest} className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed">
               {saving ? '저장 중...' : editingId ? '수정 완료' : '저장'}
             </button>
+            {isTest && <span className="text-xs text-notion-gray">테스트 계정은 저장 불가</span>}
           </div>
         </div>
 
@@ -413,13 +415,14 @@ export default function DailyReportClient({ session }: Props) {
 
           <button
             onClick={handleGenerateWeekly}
-            disabled={weeklyGenerating || selectedWeekStarts.length === 0}
+            disabled={weeklyGenerating || selectedWeekStarts.length === 0 || isTest}
             className="text-sm bg-notion-blue text-white px-3 py-2 rounded-md hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {weeklyGenerating
               ? `생성 중... (${generateResults.length}/${selectedWeekStarts.length})`
               : `주간보고 자동생성${selectedWeekStarts.length > 0 ? ` (${selectedWeekStarts.length}주차)` : ''}`}
           </button>
+          {isTest && <p className="text-xs text-notion-gray mt-1">테스트 계정은 저장 기능을 사용할 수 없습니다.</p>}
         </div>
 
         {/* 최근 일일보고 목록 */}
@@ -456,13 +459,15 @@ export default function DailyReportClient({ session }: Props) {
                     >
                       {editingId === r.id ? '수정 중...' : '수정'}
                     </button>
-                    <button
-                      onClick={() => handleDelete(r.id!)}
-                      disabled={deletingId === r.id || !!editingId}
-                      className="text-xs text-red-400 hover:text-red-600 disabled:opacity-40"
-                    >
-                      {deletingId === r.id ? '삭제 중...' : '삭제'}
-                    </button>
+                    {!isTest && (
+                      <button
+                        onClick={() => handleDelete(r.id!)}
+                        disabled={deletingId === r.id || !!editingId}
+                        className="text-xs text-red-400 hover:text-red-600 disabled:opacity-40"
+                      >
+                        {deletingId === r.id ? '삭제 중...' : '삭제'}
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
