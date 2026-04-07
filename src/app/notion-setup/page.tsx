@@ -159,6 +159,21 @@ export default function NotionSetupPage() {
           <p className="text-xs text-blue-700 mt-2">※ DB가 아닌 일반 페이지 URL이라면: <span className="font-mono">notion.so/제목-<strong>32자리</strong></span> 형태의 마지막 32자리</p>
         </div>
 
+        {/* ── Notion 내보내기 연동 흐름 ── */}
+        <div className="card mb-3 bg-gray-50 border-gray-200">
+          <p className="text-xs font-semibold text-gray-700 mb-2">🔄 Notion 내보내기 동작 방식</p>
+          <p className="text-xs text-gray-700 mb-2">
+            주간보고 화면에서 <strong>Notion 내보내기</strong>를 누르면 아래 우선순위로 DB를 결정합니다:
+          </p>
+          <ol className="text-xs text-gray-700 space-y-1 list-decimal list-inside mb-2">
+            <li><strong>개인 DB ID</strong>가 설정되어 있으면 → 개인 DB에 내보내기</li>
+            <li>개인 DB ID가 없으면 → <strong>팀 공용 DB ID</strong> (위에서 팀장이 설정한 값)에 내보내기</li>
+          </ol>
+          <p className="text-xs text-gray-600">
+            ※ 토큰도 마찬가지: 개인 토큰이 있으면 개인 토큰 사용, 없으면 팀 공용 토큰 사용
+          </p>
+        </div>
+
         {/* ── 팀원 개인 설정 안내 ── */}
         <div className="card bg-purple-50 border-purple-200">
           <p className="text-xs font-semibold text-purple-800 mb-2">👤 팀원 개인 설정 (각자 진행)</p>
@@ -176,10 +191,13 @@ export default function NotionSetupPage() {
               </ul>
             </li>
             <li>DB에 팀 Integration 연결 (···→ Connections)</li>
-            <li>DB ID 복사</li>
-            <li>앱 <strong>환경설정 → 내 정보</strong> → 개인 Notion 주간보고 DB ID에 입력 후 저장</li>
-            <li>별도 워크스페이스라면: 직접 Integration 생성 후 개인 Notion 토큰도 함께 입력</li>
+            <li>DB ID 복사 (위의 <strong>DB ID 찾는 방법</strong> 참고)</li>
+            <li>앱 <strong>환경설정 → 내 정보 탭</strong> → <strong>개인 Notion 주간보고 DB ID</strong> 입력 후 저장</li>
+            <li>별도 워크스페이스라면: 직접 Integration 생성 후 <strong>개인 Notion Integration 토큰</strong>도 함께 입력</li>
           </ol>
+          <div className="mt-3 p-2 bg-purple-100 rounded text-xs text-purple-900">
+            <strong>저장 후 확인:</strong> 주간보고 화면 → Notion 내보내기 → 내 개인 DB에 항목이 생성되면 성공
+          </div>
         </div>
       </div>
     </div>

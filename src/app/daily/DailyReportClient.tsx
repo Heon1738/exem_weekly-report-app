@@ -39,6 +39,7 @@ export default function DailyReportClient({ session }: Props) {
   const [weeklyGenerating, setWeeklyGenerating] = useState(false)
   const [generateResults, setGenerateResults] = useState<{ weekStart: string; weekEnd: string; success: boolean; error?: string }[]>([])
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [selectedWeekStarts, setSelectedWeekStarts] = useState<string[]>([])
 
   const today = new Date().toISOString().split('T')[0]
   const { weekStart, weekEnd } = getWeekRange(today)
@@ -57,6 +58,16 @@ export default function DailyReportClient({ session }: Props) {
   })()
 
   useEffect(() => { fetchRecentReports() }, [])
+
+  // 일일보고가 로드되면 현재 주차 자동 선택 (없으면 가장 최근 주차)
+  useEffect(() => {
+    if (recentReports.length > 0 && selectedWeekStarts.length === 0) {
+      const hasCurrentWeek = recentReports.some(r => getWeekRange(r.date).weekStart === weekStart)
+      const firstWeek = uniqueWeeks[0]?.weekStart
+      if (hasCurrentWeek) setSelectedWeekStarts([weekStart])
+      else if (firstWeek) setSelectedWeekStarts([firstWeek])
+    }
+  }, [recentReports])
 
   const fetchRecentReports = async () => {
     try {
@@ -93,16 +104,28 @@ export default function DailyReportClient({ session }: Props) {
     }
   }
 
+  const fmtWeekLabel = (weekStart: string) => {
+    const [, m, d] = weekStart.split('-').map(Number)
+    return `${m}월 ${Math.ceil((d - 1) / 7) + 1}주차`
+  }
+
+  const toggleWeekSelect = (ws: string) => {
+    setSelectedWeekStarts(prev =>
+      prev.includes(ws) ? prev.filter(x => x !== ws) : [...prev, ws]
+    )
+  }
+
   const handleGenerateWeekly = async () => {
-    if (uniqueWeeks.length === 0) {
-      setMessage({ type: 'error', text: '작성된 일일보고가 없습니다.' })
+    const weeks = uniqueWeeks.filter(w => selectedWeekStarts.includes(w.weekStart))
+    if (weeks.length === 0) {
+      setMessage({ type: 'error', text: '생성할 주차를 선택해주세요.' })
       return
     }
     setWeeklyGenerating(true)
     setGenerateResults([])
     setMessage(null)
     const results: typeof generateResults = []
-    for (const week of uniqueWeeks) {
+    for (const week of weeks) {
       try {
         const res = await fetch('/api/weekly/autofill', {
           method: 'POST',
@@ -333,57 +356,68 @@ export default function DailyReportClient({ session }: Props) {
 
         {/* 주간보고 자동생성 배너 */}
         <div className="mt-8 p-4 rounded-lg border border-notion-border bg-white">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-notion-text">📊 주간보고 자동생성</p>
-              <p className="text-xs text-notion-gray mt-0.5">
-                {uniqueWeeks.length > 0
-                  ? `작성된 일일보고를 바탕으로 ${uniqueWeeks.length}개 주차의 주간보고를 자동 생성합니다. 기존 작성 내용은 보존되며, 일일보고 기반 섹션(고객사 지원·예정 작업)만 갱신됩니다.`
-                  : '작성된 일일보고가 없습니다.'}
-              </p>
-              {uniqueWeeks.length > 0 && !weeklyGenerating && generateResults.length === 0 && (
-                <p className="text-xs text-notion-gray mt-1">
-                  대상 주차: {uniqueWeeks.map(w => {
-                    const [, m, d] = w.weekStart.split('-').map(Number)
-                    const week = Math.ceil((d - 1) / 7) + 1
-                    return `${m}월 ${week}주차`
-                  }).join(', ')}
+          <p className="text-sm font-medium text-notion-text mb-1">📊 주간보고 자동생성</p>
+          <p className="text-xs text-notion-gray mb-3">
+            {uniqueWeeks.length > 0
+              ? '생성할 주차를 선택하세요. 기존 작성 내용은 보존되며, 일일보고 기반 섹션(고객사 지원·예정 작업)만 갱신됩니다.'
+              : '작성된 일일보고가 없습니다.'}
+          </p>
+
+          {/* 주차 선택 체크박스 */}
+          {uniqueWeeks.length > 0 && !weeklyGenerating && generateResults.length === 0 && (
+            <div className="space-y-1.5 mb-3">
+              {uniqueWeeks.map(w => (
+                <label key={w.weekStart} className="flex items-center gap-2 cursor-pointer group">
+                  <input
+                    type="checkbox"
+                    checked={selectedWeekStarts.includes(w.weekStart)}
+                    onChange={() => toggleWeekSelect(w.weekStart)}
+                    className="w-3.5 h-3.5 accent-notion-blue"
+                  />
+                  <span className="text-xs text-notion-text group-hover:text-notion-blue">
+                    {fmtWeekLabel(w.weekStart)}
+                    <span className="text-notion-gray ml-1">({w.count}일 작성)</span>
+                    {w.weekStart === weekStart && (
+                      <span className="ml-1 text-xs bg-blue-100 text-blue-600 px-1 rounded">이번 주</span>
+                    )}
+                  </span>
+                </label>
+              ))}
+            </div>
+          )}
+
+          {/* 생성 진행 중 */}
+          {weeklyGenerating && (
+            <p className="text-xs text-notion-blue mb-3">
+              진행 중... ({generateResults.length + 1}/{selectedWeekStarts.length})
+            </p>
+          )}
+
+          {/* 생성 결과 */}
+          {generateResults.length > 0 && !weeklyGenerating && (
+            <div className="mb-3 space-y-0.5">
+              {generateResults.map(r => (
+                <p key={r.weekStart} className={`text-xs ${r.success ? 'text-green-600' : 'text-red-500'}`}>
+                  {r.success ? '✓' : '✗'} {fmtWeekLabel(r.weekStart)} {r.success ? '생성 완료' : r.error}
                 </p>
-              )}
-              {/* 생성 진행 중 */}
-              {weeklyGenerating && generateResults.length < uniqueWeeks.length && (
-                <p className="text-xs text-notion-blue mt-1">
-                  진행 중... ({generateResults.length + 1}/{uniqueWeeks.length})
-                </p>
-              )}
-              {/* 생성 결과 */}
-              {generateResults.length > 0 && !weeklyGenerating && (
-                <div className="mt-2 space-y-0.5">
-                  {generateResults.map(r => {
-                    const [, m, d] = r.weekStart.split('-').map(Number)
-                    const week = Math.ceil((d - 1) / 7) + 1
-                    return (
-                      <p key={r.weekStart} className={`text-xs ${r.success ? 'text-green-600' : 'text-red-500'}`}>
-                        {r.success ? '✓' : '✗'} {m}월 {week}주차 {r.success ? '생성 완료' : r.error}
-                      </p>
-                    )
-                  })}
-                  {generateResults.every(r => r.success) && (
-                    <button onClick={() => router.push('/weekly')} className="text-xs text-notion-blue hover:underline mt-1">
-                      → 주간보고 페이지로 이동
-                    </button>
-                  )}
-                </div>
+              ))}
+              {generateResults.every(r => r.success) && (
+                <button onClick={() => router.push('/weekly')} className="text-xs text-notion-blue hover:underline mt-1">
+                  → 주간보고 페이지로 이동
+                </button>
               )}
             </div>
-            <button
-              onClick={handleGenerateWeekly}
-              disabled={weeklyGenerating || uniqueWeeks.length === 0}
-              className="flex-shrink-0 text-sm bg-notion-blue text-white px-3 py-2 rounded-md hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {weeklyGenerating ? `생성 중... (${generateResults.length}/${uniqueWeeks.length})` : '주간보고 자동생성'}
-            </button>
-          </div>
+          )}
+
+          <button
+            onClick={handleGenerateWeekly}
+            disabled={weeklyGenerating || selectedWeekStarts.length === 0}
+            className="text-sm bg-notion-blue text-white px-3 py-2 rounded-md hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {weeklyGenerating
+              ? `생성 중... (${generateResults.length}/${selectedWeekStarts.length})`
+              : `주간보고 자동생성${selectedWeekStarts.length > 0 ? ` (${selectedWeekStarts.length}주차)` : ''}`}
+          </button>
         </div>
 
         {/* 최근 일일보고 목록 */}
