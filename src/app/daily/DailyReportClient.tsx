@@ -37,17 +37,24 @@ export default function DailyReportClient({ session }: Props) {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [autoFilling, setAutoFilling] = useState(false)
   const [weeklyGenerating, setWeeklyGenerating] = useState(false)
+  const [generateResults, setGenerateResults] = useState<{ weekStart: string; weekEnd: string; success: boolean; error?: string }[]>([])
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const today = new Date().toISOString().split('T')[0]
   const { weekStart, weekEnd } = getWeekRange(today)
 
-  // 가장 최근 일일보고가 있는 주를 자동생성 대상으로 사용
-  const latestReport = recentReports.length > 0 ? recentReports[0] : null
-  const targetDate = latestReport ? latestReport.date : today
-  const { weekStart: targetWeekStart, weekEnd: targetWeekEnd } = getWeekRange(targetDate)
-  const targetWeekCount = recentReports.filter(r => r.date >= targetWeekStart && r.date <= targetWeekEnd).length
-  const isCurrentWeek = targetWeekStart === weekStart
+  // 일일보고가 있는 모든 주차 추출
+  const uniqueWeeks = (() => {
+    const map = new Map<string, { weekEnd: string; count: number }>()
+    for (const r of recentReports) {
+      const { weekStart: ws, weekEnd: we } = getWeekRange(r.date)
+      if (!map.has(ws)) map.set(ws, { weekEnd: we, count: 0 })
+      map.get(ws)!.count++
+    }
+    return Array.from(map.entries())
+      .map(([ws, { weekEnd: we, count }]) => ({ weekStart: ws, weekEnd: we, count }))
+      .sort((a, b) => b.weekStart.localeCompare(a.weekStart))
+  })()
 
   useEffect(() => { fetchRecentReports() }, [])
 
@@ -87,31 +94,33 @@ export default function DailyReportClient({ session }: Props) {
   }
 
   const handleGenerateWeekly = async () => {
-    if (targetWeekCount === 0) {
+    if (uniqueWeeks.length === 0) {
       setMessage({ type: 'error', text: '작성된 일일보고가 없습니다.' })
       return
     }
     setWeeklyGenerating(true)
+    setGenerateResults([])
     setMessage(null)
-    try {
-      const res = await fetch('/api/weekly/autofill', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date: targetDate }),
-      })
-      if (res.ok) {
-        const data = await res.json()
-        setMessage({ type: 'success', text: `주간보고 초안이 생성되었습니다 (${data.weekStart} ~ ${data.weekEnd}). 주간보고 페이지로 이동합니다.` })
-        setTimeout(() => router.push('/weekly'), 1200)
-      } else {
-        const data = await res.json()
-        setMessage({ type: 'error', text: data.error || '주간보고 생성에 실패했습니다.' })
+    const results: typeof generateResults = []
+    for (const week of uniqueWeeks) {
+      try {
+        const res = await fetch('/api/weekly/autofill', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ date: week.weekStart }),
+        })
+        if (res.ok) {
+          results.push({ weekStart: week.weekStart, weekEnd: week.weekEnd, success: true })
+        } else {
+          const data = await res.json()
+          results.push({ weekStart: week.weekStart, weekEnd: week.weekEnd, success: false, error: data.error })
+        }
+      } catch {
+        results.push({ weekStart: week.weekStart, weekEnd: week.weekEnd, success: false, error: '오류 발생' })
       }
-    } catch {
-      setMessage({ type: 'error', text: '주간보고 생성 중 오류가 발생했습니다.' })
-    } finally {
-      setWeeklyGenerating(false)
+      setGenerateResults([...results])
     }
+    setWeeklyGenerating(false)
   }
 
   const handleDelete = async (id: string) => {
@@ -324,23 +333,55 @@ export default function DailyReportClient({ session }: Props) {
 
         {/* 주간보고 자동생성 배너 */}
         <div className="mt-8 p-4 rounded-lg border border-notion-border bg-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-notion-text">
-                📊 {isCurrentWeek ? '이번 주' : `지난 주 (${targetWeekStart} ~ ${targetWeekEnd})`} 주간보고 자동생성
-              </p>
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-notion-text">📊 주간보고 자동생성</p>
               <p className="text-xs text-notion-gray mt-0.5">
-                {targetWeekCount > 0
-                  ? `일일보고 ${targetWeekCount}건을 바탕으로 주간보고를 자동으로 작성합니다. (기존 작성 내용 보존)`
+                {uniqueWeeks.length > 0
+                  ? `작성된 일일보고를 바탕으로 ${uniqueWeeks.length}개 주차의 주간보고를 자동 생성합니다. 기존 작성 내용은 보존되며, 일일보고 기반 섹션(고객사 지원·예정 작업)만 갱신됩니다.`
                   : '작성된 일일보고가 없습니다.'}
               </p>
+              {uniqueWeeks.length > 0 && !weeklyGenerating && generateResults.length === 0 && (
+                <p className="text-xs text-notion-gray mt-1">
+                  대상 주차: {uniqueWeeks.map(w => {
+                    const [, m, d] = w.weekStart.split('-').map(Number)
+                    const week = Math.ceil((d - 1) / 7) + 1
+                    return `${m}월 ${week}주차`
+                  }).join(', ')}
+                </p>
+              )}
+              {/* 생성 진행 중 */}
+              {weeklyGenerating && generateResults.length < uniqueWeeks.length && (
+                <p className="text-xs text-notion-blue mt-1">
+                  진행 중... ({generateResults.length + 1}/{uniqueWeeks.length})
+                </p>
+              )}
+              {/* 생성 결과 */}
+              {generateResults.length > 0 && !weeklyGenerating && (
+                <div className="mt-2 space-y-0.5">
+                  {generateResults.map(r => {
+                    const [, m, d] = r.weekStart.split('-').map(Number)
+                    const week = Math.ceil((d - 1) / 7) + 1
+                    return (
+                      <p key={r.weekStart} className={`text-xs ${r.success ? 'text-green-600' : 'text-red-500'}`}>
+                        {r.success ? '✓' : '✗'} {m}월 {week}주차 {r.success ? '생성 완료' : r.error}
+                      </p>
+                    )
+                  })}
+                  {generateResults.every(r => r.success) && (
+                    <button onClick={() => router.push('/weekly')} className="text-xs text-notion-blue hover:underline mt-1">
+                      → 주간보고 페이지로 이동
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
             <button
               onClick={handleGenerateWeekly}
-              disabled={weeklyGenerating || targetWeekCount === 0}
-              className="flex-shrink-0 ml-4 text-sm bg-notion-blue text-white px-3 py-2 rounded-md hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={weeklyGenerating || uniqueWeeks.length === 0}
+              className="flex-shrink-0 text-sm bg-notion-blue text-white px-3 py-2 rounded-md hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {weeklyGenerating ? 'AI 분석 중...' : '주간보고 생성'}
+              {weeklyGenerating ? `생성 중... (${generateResults.length}/${uniqueWeeks.length})` : '주간보고 자동생성'}
             </button>
           </div>
         </div>
