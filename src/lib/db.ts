@@ -164,6 +164,25 @@ export async function deleteMember(memberId: string): Promise<void> {
   await sql`DELETE FROM members WHERE id=${memberId}`
 }
 
+export async function getMembersSummary(): Promise<{ name: string; position: string; department: string; lastDailyDate: string | null; lastWeeklyStart: string | null }[]> {
+  const rows = await sql`
+    SELECT
+      m.name, m.position, m.department,
+      (SELECT MAX(date)::text FROM daily_reports WHERE author_name = m.name) as last_daily,
+      (SELECT MAX(week_start)::text FROM weekly_drafts WHERE author_name = m.name) as last_weekly
+    FROM members m
+    WHERE m.role = 'member'
+    ORDER BY m.created_at
+  `
+  return rows.map(r => ({
+    name: r.name,
+    position: r.position,
+    department: r.department,
+    lastDailyDate: r.last_daily ? r.last_daily.slice(0, 10) : null,
+    lastWeeklyStart: r.last_weekly ? r.last_weekly.slice(0, 10) : null,
+  }))
+}
+
 // ─────────────────────────────────────────────
 // 범례 관리
 // ─────────────────────────────────────────────

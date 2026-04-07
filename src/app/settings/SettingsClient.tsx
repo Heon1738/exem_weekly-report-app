@@ -251,8 +251,17 @@ export default function SettingsClient({ session }: Props) {
               <div>
                 <label className="block text-xs text-notion-gray mb-1">개인 Notion 페이지 ID <span className="text-notion-gray font-normal">(주간보고 내보내기 대상)</span></label>
                 <input value={selfForm.notionPageId} onChange={e => setSelfForm(f => ({ ...f, notionPageId: e.target.value }))}
-                  className="input-field font-mono text-xs" placeholder="Notion 페이지 URL의 32자리 ID" />
-                <p className="text-xs text-notion-gray mt-1">입력하면 주간보고 내보내기 시 이 페이지로 내보냅니다. 비워두면 팀 공용 페이지로 내보냅니다.</p>
+                  className="input-field font-mono text-xs" placeholder="예: 1f33d7eebe418013ac30dee162d0d7f2" />
+                <div className="mt-1.5 text-xs text-notion-gray space-y-1">
+                  <p>입력하면 주간보고 내보내기 시 이 페이지로 내보냅니다. 비워두면 팀 공용 페이지로 내보냅니다.</p>
+                  <p className="font-medium text-notion-text">페이지 ID 찾는 방법:</p>
+                  <ol className="list-decimal list-inside space-y-0.5 pl-1">
+                    <li>내 Notion에서 주간보고 저장할 페이지 생성</li>
+                    <li>해당 페이지 우상단 <span className="font-mono bg-notion-gray-bg px-0.5 rounded">···</span> → Connections → 팀 Integration 연결</li>
+                    <li>페이지 URL 마지막 32자리 영숫자 복사 후 위에 입력</li>
+                  </ol>
+                  <p className="font-mono bg-notion-gray-bg px-1.5 py-0.5 rounded">notion.so/제목-<span className="font-bold text-notion-text">1f33d7ee...</span></p>
+                </div>
               </div>
               {selfMsg && <p className={`text-sm ${selfMsg.type === 'success' ? 'text-green-600' : 'text-red-500'}`}>{selfMsg.text}</p>}
               <button type="submit" disabled={selfLoading} className="btn-primary">
@@ -408,14 +417,14 @@ export default function SettingsClient({ session }: Props) {
               </form>
             </div>
             <div className="card bg-notion-yellow-bg border-yellow-200">
-              <p className="text-sm text-yellow-800 font-semibold mb-1">Notion 연동 방법</p>
-              <ol className="text-xs text-yellow-800 space-y-1 list-decimal list-inside">
-                <li>notion.so/my-integrations 에서 Internal Integration 생성 후 토큰 복사</li>
-                <li>주간보고를 내보낼 Notion 페이지 생성</li>
-                <li>해당 페이지 우상단 ··· → Connections → 생성한 Integration 연결</li>
-                <li>페이지 URL에서 ID(32자리) 복사 → 위 입력란에 입력</li>
-                <li>Notion 토큰은 <a href="/notion-setup" className="underline">Notion 연동 설정</a> 페이지에서 설정</li>
+              <p className="text-sm text-yellow-800 font-semibold mb-2">📋 Notion 연동 방법 (팀장 1회 설정)</p>
+              <ol className="text-xs text-yellow-800 space-y-1.5 list-decimal list-inside">
+                <li><span className="font-medium">notion.so/my-integrations</span> → 새 Integration 생성 → Internal로 설정</li>
+                <li>생성된 <span className="font-medium">Internal Integration Secret</span>을 <a href="/notion-setup" className="underline font-medium">Notion 연동 설정</a> 페이지에서 입력 (팀 전체 공유)</li>
+                <li>팀 공용 주간보고 페이지 생성 후 우상단 <span className="font-medium">···</span> → Connections → Integration 연결</li>
+                <li>페이지 URL 끝 32자리 ID → 위 부모 페이지 ID 입력란에 입력 후 저장</li>
               </ol>
+              <p className="text-xs text-yellow-700 mt-2 font-medium">👤 팀원 개인 페이지 설정은 내 정보 탭의 &quot;개인 Notion 페이지 ID&quot; 에서 각자 설정합니다.</p>
             </div>
           </div>
         )}

@@ -14,6 +14,7 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [initializing, setInitializing] = useState(false)
+  const [loginRole, setLoginRole] = useState('')
 
   // 첫 번째 팀장 계정 생성
   const [firstName, setFirstName] = useState('')
@@ -109,11 +110,12 @@ export default function LoginPage() {
       const data = await res.json()
       if (res.ok) {
         if (data.mustChangePin) {
+          setLoginRole(data.role || '')
           setCurrentPin(pin)
           setChangingPin(true)
           setPin('')
         } else {
-          router.push('/daily')
+          window.location.href = data.role === 'leader' ? '/reports' : '/daily'
         }
       } else {
         setError(data.error || '로그인에 실패했습니다.')
@@ -140,7 +142,7 @@ export default function LoginPage() {
         body: JSON.stringify({ currentPin, newPin }),
       })
       if (res.ok) {
-        router.push('/daily')
+        window.location.href = loginRole === 'leader' ? '/reports' : '/daily'
       } else {
         const data = await res.json()
         setError(data.error || '패스워드 변경에 실패했습니다.')

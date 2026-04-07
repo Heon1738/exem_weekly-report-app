@@ -148,14 +148,28 @@ export default function NotionSetupPage() {
         </div>
 
         <div className="card mt-4 bg-notion-yellow-bg border-yellow-200">
-          <p className="text-xs text-yellow-800 font-semibold mb-1">설정 방법</p>
-          <ol className="text-xs text-yellow-800 space-y-1 list-decimal list-inside">
-            <li>notion.so/my-integrations 에서 새 통합(Integration) 생성</li>
-            <li>생성된 Internal Integration Token 복사</li>
-            <li>Notion에서 데이터를 저장할 페이지 생성</li>
-            <li>해당 페이지 → 우상단 ··· → Connections → 생성한 통합 연결</li>
-            <li>페이지 URL에서 ID(32자리) 복사 후 위에 입력</li>
+          <p className="text-xs text-yellow-800 font-semibold mb-2">📋 Notion Integration 연동 방법 (팀장 1회 설정)</p>
+          <ol className="text-xs text-yellow-800 space-y-1.5 list-decimal list-inside">
+            <li><span className="font-medium">notion.so/my-integrations</span> → 새 Integration 생성 → Internal로 설정</li>
+            <li>생성된 <span className="font-medium">Internal Integration Secret</span> 복사 → 위 토큰 입력란에 붙여넣기</li>
+            <li>Notion에서 팀 공용 주간보고 페이지 생성</li>
+            <li>해당 페이지 우상단 <span className="font-medium">···</span> → <span className="font-medium">Connections</span> → 생성한 Integration 연결</li>
+            <li>페이지 URL 끝 32자리 ID 복사 → 위 부모 페이지 ID 입력란에 입력</li>
           </ol>
+        </div>
+
+        <div className="card mt-3 bg-blue-50 border-blue-200">
+          <p className="text-xs text-blue-800 font-semibold mb-2">👤 개인 Notion 페이지 설정 방법 (팀원 각자)</p>
+          <p className="text-xs text-blue-800 mb-1.5">주간보고를 개인 Notion 페이지로 내보내려면 추가 설정이 필요합니다.</p>
+          <ol className="text-xs text-blue-800 space-y-1.5 list-decimal list-inside">
+            <li>내 Notion에서 주간보고를 저장할 개인 페이지 생성</li>
+            <li>해당 페이지 우상단 <span className="font-medium">···</span> → <span className="font-medium">Connections</span> → 팀 Integration 연결</li>
+            <li>페이지 URL 끝 32자리 ID 복사<br/>
+              <span className="font-mono bg-blue-100 px-1 rounded">예: notion.so/제목-1f33d7eebe418013ac30d → 1f33d7eebe418013ac30d...</span>
+            </li>
+            <li>앱 <span className="font-medium">환경설정 → 내 정보</span> 탭 → 개인 Notion 페이지 ID에 입력 후 저장</li>
+          </ol>
+          <p className="text-xs text-blue-700 mt-2">※ 개인 페이지 ID를 입력하지 않으면 팀 공용 페이지로 내보내집니다.</p>
         </div>
       </div>
     </div>

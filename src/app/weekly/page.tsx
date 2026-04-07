@@ -5,6 +5,7 @@ import WeeklyReportClient from './WeeklyReportClient'
 export default async function WeeklyPage() {
   const session = await getSessionFromCookies()
   if (!session) redirect('/login')
+  if (session.role === 'leader') redirect('/reports')
 
   return <WeeklyReportClient session={session} />
 }
