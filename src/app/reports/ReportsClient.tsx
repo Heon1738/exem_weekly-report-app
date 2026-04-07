@@ -101,8 +101,8 @@ function SectionBlock({ title, children }: { title: string; children: React.Reac
   )
 }
 
-function WeeklyDraftViewer({ member, weekStart, weekEnd, onClose }: {
-  member: string; weekStart: string; weekEnd: string; onClose: () => void
+function WeeklyDraftViewer({ member, weekStart, weekEnd, onClose, isAdmin }: {
+  member: string; weekStart: string; weekEnd: string; onClose: () => void; isAdmin: boolean
 }) {
   const [draft, setDraft] = useState<WeeklyDraft | null>(null)
   const [loading, setLoading] = useState(true)
@@ -119,10 +119,15 @@ function WeeklyDraftViewer({ member, weekStart, weekEnd, onClose }: {
 
   return (
     <Modal title={title} onClose={onClose}>
+      {isAdmin && (
+        <div className="mb-3 p-2 rounded bg-yellow-50 text-yellow-800 text-xs border border-yellow-200">
+          관리자 계정은 보고 내용을 열람할 수 없습니다.
+        </div>
+      )}
       {loading ? <p className="text-notion-gray">불러오는 중...</p>
         : error ? <p className="text-red-500">{error}</p>
         : draft ? (
-          <div className="divide-y divide-notion-border">
+          <div className={`divide-y divide-notion-border${isAdmin ? ' blur-sm select-none pointer-events-none' : ''}`}>
             <SectionBlock title="1. 주요 업무 진행 상황">
               {draft.section1.filter(i => i.projectName).length === 0
                 ? <p className="text-notion-gray text-xs">없음</p>
@@ -180,8 +185,8 @@ function WeeklyDraftViewer({ member, weekStart, weekEnd, onClose }: {
 }
 
 // ─── Daily Reports Viewer ────────────────────────────
-function DailyReportsViewer({ member, weekStart, weekEnd, onClose }: {
-  member: string; weekStart: string; weekEnd: string; onClose: () => void
+function DailyReportsViewer({ member, weekStart, weekEnd, onClose, isAdmin }: {
+  member: string; weekStart: string; weekEnd: string; onClose: () => void; isAdmin: boolean
 }) {
   const [reports, setReports] = useState<DailyReport[]>([])
   const [loading, setLoading] = useState(true)
@@ -197,10 +202,15 @@ function DailyReportsViewer({ member, weekStart, weekEnd, onClose }: {
 
   return (
     <Modal title={title} onClose={onClose}>
+      {isAdmin && (
+        <div className="mb-3 p-2 rounded bg-yellow-50 text-yellow-800 text-xs border border-yellow-200">
+          관리자 계정은 보고 내용을 열람할 수 없습니다.
+        </div>
+      )}
       {loading ? <p className="text-notion-gray">불러오는 중...</p>
         : reports.length === 0 ? <p className="text-notion-gray">작성된 일일보고가 없습니다.</p>
         : (
-          <div className="space-y-3">
+          <div className={`space-y-3${isAdmin ? ' blur-sm select-none pointer-events-none' : ''}`}>
             {reports.map(r => (
               <div key={r.id} className="border border-notion-border rounded-md p-3 space-y-1.5">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -230,7 +240,7 @@ function DailyReportsViewer({ member, weekStart, weekEnd, onClose }: {
 // ─── Export Section ───────────────────────────────────
 type ExportResult = { name: string; pageId: string; error?: string }
 
-function ExportSection() {
+function ExportSection({ isAdmin }: { isAdmin: boolean }) {
   const weekOptions = getWeekOptions(8)
   const [selectedIdx, setSelectedIdx] = useState(0)
   const [exporting, setExporting] = useState(false)
@@ -257,18 +267,28 @@ function ExportSection() {
   return (
     <div className="card mb-6">
       <p className="text-sm font-semibold text-notion-text mb-3">📤 전체 Notion 내보내기</p>
+      {isAdmin && (
+        <p className="text-xs text-yellow-700 bg-yellow-50 border border-yellow-200 rounded px-2 py-1.5 mb-3">
+          관리자 계정은 Notion 내보내기를 사용할 수 없습니다.
+        </p>
+      )}
       <div className="flex items-center gap-3 flex-wrap">
         <select
           value={selectedIdx}
           onChange={e => { setSelectedIdx(Number(e.target.value)); setResults(null) }}
           className="input-field w-auto text-sm"
-          disabled={exporting}
+          disabled={exporting || isAdmin}
         >
           {weekOptions.map((w, i) => (
             <option key={w.weekStart} value={i}>{w.label}</option>
           ))}
         </select>
-        <button onClick={handleExport} disabled={exporting} className="btn-primary text-sm">
+        <button
+          onClick={handleExport}
+          disabled={exporting || isAdmin}
+          title={isAdmin ? '관리자 계정은 Notion 내보내기를 사용할 수 없습니다.' : undefined}
+          className="btn-primary text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+        >
           {exporting ? '내보내는 중...' : 'Notion으로 전체 내보내기'}
         </button>
       </div>
@@ -421,6 +441,7 @@ function MemberCard({ member, onView }: { member: MemberSummary; onView: (s: Mod
 
 // ─── Main ─────────────────────────────────────────────
 export default function ReportsClient({ session }: { session: JwtPayload }) {
+  const isAdmin = session.role === 'admin'
   const [members, setMembers] = useState<MemberSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState<ModalState | null>(null)
@@ -442,7 +463,7 @@ export default function ReportsClient({ session }: { session: JwtPayload }) {
         <h1 className="text-xl font-semibold text-notion-text mb-1">보고 관리</h1>
         <p className="text-sm text-notion-gray mb-6">팀원별 보고 현황 · 날짜 또는 주간보고 목록에서 내용 확인 가능</p>
 
-        <ExportSection />
+        <ExportSection isAdmin={isAdmin} />
 
         {loading ? (
           <p className="text-sm text-notion-gray">불러오는 중...</p>
@@ -466,12 +487,12 @@ export default function ReportsClient({ session }: { session: JwtPayload }) {
 
       {modal?.type === 'weekly' && (
         <WeeklyDraftViewer
-          member={modal.member} weekStart={modal.weekStart} weekEnd={modal.weekEnd} onClose={closeModal}
+          member={modal.member} weekStart={modal.weekStart} weekEnd={modal.weekEnd} onClose={closeModal} isAdmin={isAdmin}
         />
       )}
       {modal?.type === 'daily' && (
         <DailyReportsViewer
-          member={modal.member} weekStart={modal.weekStart} weekEnd={modal.weekEnd} onClose={closeModal}
+          member={modal.member} weekStart={modal.weekStart} weekEnd={modal.weekEnd} onClose={closeModal} isAdmin={isAdmin}
         />
       )}
     </div>

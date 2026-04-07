@@ -41,7 +41,6 @@ export default function DailyReportClient({ session }: Props) {
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [selectedWeekStarts, setSelectedWeekStarts] = useState<string[]>([])
 
-  const isAdmin = session.role === 'admin'
   const today = new Date().toISOString().split('T')[0]
   const { weekStart, weekEnd } = getWeekRange(today)
 
@@ -249,14 +248,7 @@ export default function DailyReportClient({ session }: Props) {
           </div>
         )}
 
-        {/* 관리자 블러 안내 */}
-        {isAdmin && (
-          <div className="mb-4 p-3 rounded-md text-sm bg-yellow-50 text-yellow-800 border border-yellow-200">
-            관리자 계정은 보고 내용을 열람할 수 없습니다. 내용은 보안을 위해 블러 처리됩니다.
-          </div>
-        )}
-
-        <div className={`space-y-4${isAdmin ? ' blur-sm select-none pointer-events-none' : ''}`}>
+        <div className="space-y-4">
           {/* 날짜 / 작성자 */}
           <div className="card">
             <div className="grid grid-cols-2 gap-4">
@@ -363,7 +355,7 @@ export default function DailyReportClient({ session }: Props) {
         </div>
 
         {/* 주간보고 자동생성 배너 */}
-        {!isAdmin && <div className="mt-8 p-4 rounded-lg border border-notion-border bg-white">
+        <div className="mt-8 p-4 rounded-lg border border-notion-border bg-white">
           <p className="text-sm font-medium text-notion-text mb-1">📊 주간보고 자동생성</p>
           <p className="text-xs text-notion-gray mb-3">
             {uniqueWeeks.length > 0
@@ -426,10 +418,10 @@ export default function DailyReportClient({ session }: Props) {
               ? `생성 중... (${generateResults.length}/${selectedWeekStarts.length})`
               : `주간보고 자동생성${selectedWeekStarts.length > 0 ? ` (${selectedWeekStarts.length}주차)` : ''}`}
           </button>
-        </div>}
+        </div>
 
         {/* 최근 일일보고 목록 */}
-        <div className={`mt-6${isAdmin ? ' blur-sm select-none pointer-events-none' : ''}`}>
+        <div className="mt-6">
           <h2 className="text-sm font-semibold text-notion-text mb-3">최근 일일보고</h2>
           {recentReports.length === 0 ? (
             <p className="text-sm text-notion-gray">작성된 일일보고가 없습니다.</p>

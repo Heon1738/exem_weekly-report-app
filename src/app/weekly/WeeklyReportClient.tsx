@@ -64,7 +64,6 @@ export default function WeeklyReportClient({ session }: Props) {
   const [deletingWeek, setDeletingWeek] = useState<string | null>(null)
 
   const isPrivileged = session.role === 'leader' || session.role === 'admin'
-  const isAdmin = session.role === 'admin'
 
   useEffect(() => {
     if (isPrivileged) fetchMembers()
@@ -276,16 +275,14 @@ export default function WeeklyReportClient({ session }: Props) {
             <button onClick={handleSaveDraft} disabled={saving} className="btn-secondary text-sm">
               {saving ? '저장 중...' : '초안 저장'}
             </button>
-            {isPrivileged && !isAdmin && (
+            {isPrivileged && (
               <button onClick={handleBulkExport} disabled={bulkExporting} className="bg-purple-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-purple-700 disabled:opacity-50">
                 {bulkExporting ? '처리 중...' : '📤 전체 내보내기'}
               </button>
             )}
-            {!isAdmin && (
-              <button onClick={handleExport} disabled={exporting} className="bg-green-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-700 disabled:opacity-50">
-                {exporting ? '처리 중...' : '📤 Notion 내보내기'}
-              </button>
-            )}
+            <button onClick={handleExport} disabled={exporting} className="bg-green-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-700 disabled:opacity-50">
+              {exporting ? '처리 중...' : '📤 Notion 내보내기'}
+            </button>
           </div>
         </div>
 
@@ -341,17 +338,10 @@ export default function WeeklyReportClient({ session }: Props) {
           ))}
         </div>
 
-        {/* 관리자 블러 안내 */}
-        {isAdmin && (
-          <div className="mb-4 p-3 rounded-md text-sm bg-yellow-50 text-yellow-800 border border-yellow-200">
-            관리자 계정은 보고 내용을 열람할 수 없습니다. 내용은 보안을 위해 블러 처리됩니다.
-          </div>
-        )}
-
         {loading && <p className="text-sm text-notion-gray text-center py-8">로딩 중...</p>}
 
         {!loading && activeTab === 'edit' && (
-          <div className={`space-y-4${isAdmin ? ' blur-sm select-none pointer-events-none' : ''}`}>
+          <div className="space-y-4">
             {/* Section 1 */}
             <div className="card">
               <div className="flex items-center justify-between mb-3">
@@ -470,7 +460,7 @@ export default function WeeklyReportClient({ session }: Props) {
 
         {/* 과거 주간보고 목록 */}
         {weeklyList.length > 0 && (
-          <div className={`mt-8${isAdmin ? ' blur-sm select-none pointer-events-none' : ''}`}>
+          <div className="mt-8">
             <h2 className="text-sm font-semibold text-notion-text mb-3">과거 주간보고</h2>
             <div className="space-y-2">
               {weeklyList.map(item => {
@@ -512,7 +502,7 @@ export default function WeeklyReportClient({ session }: Props) {
 
         {/* 미리보기 */}
         {!loading && activeTab === 'preview' && (
-          <div className={`bg-white border border-notion-border rounded-lg px-8 py-6${isAdmin ? ' blur-sm select-none pointer-events-none' : ''}`}>
+          <div className="bg-white border border-notion-border rounded-lg px-8 py-6">
             <div className="text-xs text-notion-gray bg-notion-gray-bg inline-block px-2 py-1 rounded mb-4">목차</div>
 
             <details open>
