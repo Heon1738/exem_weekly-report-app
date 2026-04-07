@@ -68,7 +68,7 @@ function getWeekOptions(count = 8): WeekOption[] {
   return Array.from({ length: count }, (_, i) => {
     const d = new Date(); d.setDate(d.getDate() - i * 7)
     const { weekStart, weekEnd } = getWeekRange(localDate(d))
-    const lbl = weekLabel(weekStart)
+    const lbl = weekLabel(weekStart, weekEnd)
     return { weekStart, weekEnd, label: i === 0 ? `이번주 (${lbl})` : i === 1 ? `지난주 (${lbl})` : lbl }
   })
 }
