@@ -19,6 +19,7 @@ export interface AppSettings {
   teamName: string
   divisionName: string
   notionParentPageId: string  // Notion 내보내기용 부모 페이지 ID (선택)
+  notionToken: string         // Notion API 토큰 (DB 저장 — 전체 팀원 공유)
 }
 
 // 일일보고 (간소화 - 개인 회고만)

@@ -62,6 +62,10 @@ export async function initSchema(): Promise<void> {
     )
   `
 
+  // 기존 테이블 컬럼 마이그레이션 (IF NOT EXISTS로 안전하게 추가)
+  await sql`ALTER TABLE legends ADD COLUMN IF NOT EXISTS display_order INTEGER DEFAULT 0`
+  await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS notion_token TEXT NOT NULL DEFAULT ''`
+
   // 기본 범례 (없을 때만)
   const [{ cnt: legendCnt }] = await sql`SELECT COUNT(*)::int as cnt FROM legends`
   if (Number(legendCnt) === 0) {
@@ -83,18 +87,19 @@ export async function initSchema(): Promise<void> {
 // ─────────────────────────────────────────────
 export async function getAppSettings(): Promise<AppSettings | null> {
   try {
-    const rows = await sql`SELECT team_name, division_name, notion_export_db_id FROM app_settings LIMIT 1`
+    const rows = await sql`SELECT team_name, division_name, notion_export_db_id, notion_token FROM app_settings LIMIT 1`
     if (!rows.length) return null
     const r = rows[0]
     return {
       teamName: r.team_name,
       divisionName: r.division_name,
       notionParentPageId: r.notion_export_db_id,
+      notionToken: r.notion_token || '',
     }
   } catch { return null }
 }
 
-export async function updateAppSettings(updates: Partial<Pick<AppSettings, 'teamName' | 'divisionName' | 'notionParentPageId'>>): Promise<void> {
+export async function updateAppSettings(updates: Partial<Pick<AppSettings, 'teamName' | 'divisionName' | 'notionParentPageId' | 'notionToken'>>): Promise<void> {
   const current = await getAppSettings()
   if (!current) return
   const merged = { ...current, ...updates }
@@ -102,7 +107,8 @@ export async function updateAppSettings(updates: Partial<Pick<AppSettings, 'team
     UPDATE app_settings
     SET team_name=${merged.teamName},
         division_name=${merged.divisionName},
-        notion_export_db_id=${merged.notionParentPageId}
+        notion_export_db_id=${merged.notionParentPageId},
+        notion_token=${merged.notionToken || ''}
     WHERE id=(SELECT id FROM app_settings LIMIT 1)
   `
 }

@@ -16,7 +16,7 @@ export default function Navbar({ userName, role }: NavbarProps) {
   const handleLogout = async () => {
     setLoggingOut(true)
     await fetch('/api/auth/logout', { method: 'POST' })
-    router.push('/login')
+    window.location.href = '/login'
   }
 
   const links = [

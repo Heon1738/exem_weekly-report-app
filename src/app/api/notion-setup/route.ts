@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Client } from '@notionhq/client'
 import { createNotionConfigToken, getNotionConfig, NOTION_CONFIG_COOKIE } from '@/lib/notion-config'
+import { updateAppSettings } from '@/lib/db'
 
 // GET: 현재 Notion 설정 상태 확인
 export async function GET() {
@@ -29,6 +30,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: `Notion 연결 실패: ${e?.message || '토큰 또는 페이지 ID를 확인해주세요.'}` }, { status: 400 })
   }
 
+  // DB에 토큰 저장 (전체 팀원이 공유할 수 있도록)
+  await updateAppSettings({
+    notionToken: token.trim(),
+    notionParentPageId: parentPageId.trim(),
+  })
+
+  // 쿠키에도 저장 (하위 호환)
   const configToken = await createNotionConfigToken({
     token: token.trim(),
     parentPageId: parentPageId.trim(),
