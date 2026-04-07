@@ -3,11 +3,11 @@ import { Client } from '@notionhq/client'
 import { getNotionConfig } from './notion-config'
 import type { Member, AppSettings, WeeklyDraft } from '@/types'
 
-async function getClient(settings: AppSettings, memberPageId?: string): Promise<{ notion: Client; parentPageId: string }> {
-  // 토큰 우선순위: DB 저장값 → 쿠키 → 환경변수
+async function getClient(settings: AppSettings, memberPageId?: string, memberToken?: string): Promise<{ notion: Client; parentPageId: string }> {
+  // 토큰 우선순위: 개인 토큰 → 팀 DB 저장값 → 쿠키 → 환경변수
   const config = await getNotionConfig()
-  const token = settings.notionToken || config?.token || process.env.NOTION_TOKEN
-  if (!token) throw new Error('Notion 토큰이 설정되지 않았습니다. 환경설정 → Notion 연동에서 토큰을 설정해주세요.')
+  const token = memberToken || settings.notionToken || config?.token || process.env.NOTION_TOKEN
+  if (!token) throw new Error('Notion 토큰이 설정되지 않았습니다. 환경설정 → 내 정보에서 개인 Notion 토큰을 입력하거나, 팀장에게 팀 토큰 설정을 요청하세요.')
   // 페이지 ID 우선순위: 개인 페이지 ID → 팀 공용 페이지 ID → 쿠키
   const parentPageId = memberPageId || settings.notionParentPageId || config?.parentPageId || ''
   if (!parentPageId) throw new Error('Notion 페이지 ID가 설정되지 않았습니다. 환경설정 → 내 정보에서 개인 Notion 페이지 ID를 입력해주세요.')
@@ -223,7 +223,7 @@ async function upsertPage(
 // ── 공개 API ──
 
 export async function exportWeeklyToNotion(draft: WeeklyDraft, settings: AppSettings, member: Member): Promise<string> {
-  const { notion, parentPageId } = await getClient(settings, member.notionPageId || undefined)
+  const { notion, parentPageId } = await getClient(settings, member.notionPageId || undefined, member.notionToken || undefined)
   const pageTitle = buildPageTitle(draft.weekStart, member.name)
   return upsertPage(notion, parentPageId, pageTitle, draft, settings, member)
 }
@@ -240,8 +240,12 @@ export async function exportAllMembersWeeklyToNotion(
     const draft = draftsMap.get(member.name)
     if (!draft) { results.push({ name: member.name, pageId: '', error: '작성된 주간보고 없음' }); continue }
     try {
+      // 개인 토큰/페이지 ID가 있으면 개인 클라이언트 사용
+      const client = member.notionToken || member.notionPageId
+        ? await getClient(settings, member.notionPageId || undefined, member.notionToken || undefined)
+        : { notion, parentPageId }
       const pageTitle = buildPageTitle(weekStart, member.name)
-      const pageId = await upsertPage(notion, parentPageId, pageTitle, draft, settings, member)
+      const pageId = await upsertPage(client.notion, client.parentPageId, pageTitle, draft, settings, member)
       results.push({ name: member.name, pageId })
     } catch (e: any) {
       results.push({ name: member.name, pageId: '', error: e.message || '내보내기 실패' })

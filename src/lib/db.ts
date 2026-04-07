@@ -66,6 +66,7 @@ export async function initSchema(): Promise<void> {
   await sql`ALTER TABLE legends ADD COLUMN IF NOT EXISTS display_order INTEGER DEFAULT 0`
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS notion_token TEXT NOT NULL DEFAULT ''`
   await sql`ALTER TABLE members ADD COLUMN IF NOT EXISTS notion_page_id TEXT NOT NULL DEFAULT ''`
+  await sql`ALTER TABLE members ADD COLUMN IF NOT EXISTS notion_token TEXT NOT NULL DEFAULT ''`
 
   // 기본 범례 (없을 때만)
   const [{ cnt: legendCnt }] = await sql`SELECT COUNT(*)::int as cnt FROM legends`
@@ -126,10 +127,11 @@ export async function updateAppSettings(updates: Partial<Pick<AppSettings, 'team
 export async function getMembers(): Promise<Member[]> {
   let rows
   try {
-    rows = await sql`SELECT id, name, position, department, role, pin_hash, notion_page_id FROM members ORDER BY created_at`
+    rows = await sql`SELECT id, name, position, department, role, pin_hash, notion_page_id, notion_token FROM members ORDER BY created_at`
   } catch {
     await sql`ALTER TABLE members ADD COLUMN IF NOT EXISTS notion_page_id TEXT NOT NULL DEFAULT ''`
-    rows = await sql`SELECT id, name, position, department, role, pin_hash, notion_page_id FROM members ORDER BY created_at`
+    await sql`ALTER TABLE members ADD COLUMN IF NOT EXISTS notion_token TEXT NOT NULL DEFAULT ''`
+    rows = await sql`SELECT id, name, position, department, role, pin_hash, notion_page_id, notion_token FROM members ORDER BY created_at`
   }
   return rows.map(r => ({
     id: r.id,
@@ -139,13 +141,14 @@ export async function getMembers(): Promise<Member[]> {
     role: r.role as 'leader' | 'member' | 'admin',
     pinHash: r.pin_hash,
     notionPageId: r.notion_page_id || '',
+    notionToken: r.notion_token || '',
   }))
 }
 
 export async function createMember(member: Omit<Member, 'id'>): Promise<Member> {
   const [row] = await sql`
-    INSERT INTO members (name, position, department, role, pin_hash)
-    VALUES (${member.name}, ${member.position}, ${member.department}, ${member.role}, ${member.pinHash})
+    INSERT INTO members (name, position, department, role, pin_hash, notion_page_id, notion_token)
+    VALUES (${member.name}, ${member.position}, ${member.department}, ${member.role}, ${member.pinHash}, ${member.notionPageId || ''}, ${member.notionToken || ''})
     RETURNING id
   `
   return { ...member, id: row.id }
@@ -158,6 +161,7 @@ export async function updateMember(memberId: string, member: Partial<Omit<Member
   if (member.role !== undefined) await sql`UPDATE members SET role=${member.role} WHERE id=${memberId}`
   if (member.pinHash !== undefined) await sql`UPDATE members SET pin_hash=${member.pinHash} WHERE id=${memberId}`
   if (member.notionPageId !== undefined) await sql`UPDATE members SET notion_page_id=${member.notionPageId} WHERE id=${memberId}`
+  if (member.notionToken !== undefined) await sql`UPDATE members SET notion_token=${member.notionToken} WHERE id=${memberId}`
 }
 
 export async function deleteMember(memberId: string): Promise<void> {

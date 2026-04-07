@@ -32,7 +32,7 @@ export default function SettingsClient({ session }: Props) {
   const [editMsg, setEditMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   // 내 정보 편집 (member)
-  const [selfForm, setSelfForm] = useState({ position: '', department: '', pin: '', notionPageId: '' })
+  const [selfForm, setSelfForm] = useState({ position: '', department: '', pin: '', notionPageId: '', notionToken: '' })
   const [selfLoading, setSelfLoading] = useState(false)
   const [selfMsg, setSelfMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
@@ -59,7 +59,7 @@ export default function SettingsClient({ session }: Props) {
   useEffect(() => {
     if (!isLeader && members.length > 0) {
       const me = members.find(m => m.name === session.name)
-      if (me) setSelfForm({ position: me.position, department: me.department, pin: '', notionPageId: me.notionPageId || '' })
+      if (me) setSelfForm({ position: me.position, department: me.department, pin: '', notionPageId: me.notionPageId || '', notionToken: (me as any).notionToken || '' })
     }
   }, [members])
 
@@ -91,7 +91,7 @@ export default function SettingsClient({ session }: Props) {
     if (selfForm.pin && selfForm.pin.length < 4) { setSelfMsg({ type: 'error', text: '패스워드는 4자리 이상이어야 합니다.' }); return }
     setSelfLoading(true); setSelfMsg(null)
     try {
-      const body: Record<string, string> = { id: me.id, position: selfForm.position, department: selfForm.department, notionPageId: selfForm.notionPageId }
+      const body: Record<string, string> = { id: me.id, position: selfForm.position, department: selfForm.department, notionPageId: selfForm.notionPageId, notionToken: selfForm.notionToken }
       if (selfForm.pin.trim()) body.pin = selfForm.pin
       const res = await fetch('/api/settings/members', {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
@@ -247,6 +247,15 @@ export default function SettingsClient({ session }: Props) {
                 <label className="block text-xs text-notion-gray mb-1">새 패스워드 <span className="text-notion-gray font-normal">(변경 시에만 입력, 4자리 이상)</span></label>
                 <input type="password" value={selfForm.pin} onChange={e => setSelfForm(f => ({ ...f, pin: e.target.value }))}
                   className="input-field" placeholder="변경하지 않으면 비워두세요" />
+              </div>
+              <div>
+                <label className="block text-xs text-notion-gray mb-1">개인 Notion Integration 토큰 <span className="text-notion-gray font-normal">(개인 워크스페이스 사용 시)</span></label>
+                <input type="password" value={selfForm.notionToken} onChange={e => setSelfForm(f => ({ ...f, notionToken: e.target.value }))}
+                  className="input-field font-mono text-xs" placeholder="secret_xxxxxxxxxxxxxxxxxxxx" />
+                <div className="mt-1 text-xs text-notion-gray space-y-0.5">
+                  <p>팀과 다른 워크스페이스를 사용하는 경우에만 입력. 비워두면 팀 공용 토큰을 사용합니다.</p>
+                  <p>발급: <span className="font-mono">notion.so/my-integrations</span> → Internal Integration 생성 → Secret 복사</p>
+                </div>
               </div>
               <div>
                 <label className="block text-xs text-notion-gray mb-1">개인 Notion 페이지 ID <span className="text-notion-gray font-normal">(주간보고 내보내기 대상)</span></label>

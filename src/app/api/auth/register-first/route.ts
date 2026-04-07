@@ -21,6 +21,7 @@ export async function POST(request: NextRequest) {
       role: 'leader',
       pinHash: hashPin('1234'),
       notionPageId: '',
+      notionToken: '',
     })
 
     return NextResponse.json({ success: true })
