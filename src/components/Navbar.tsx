@@ -20,7 +20,15 @@ export default function Navbar({ userName, role }: NavbarProps) {
     window.location.href = '/login'
   }
 
-  const links = role === 'admin' || role === 'test'
+  const links = role === 'admin'
+    ? [
+        { href: '/daily', label: '일일보고' },
+        { href: '/weekly', label: '주간보고' },
+        { href: '/reports', label: '보고 관리' },
+        { href: '/settings', label: '환경설정' },
+        { href: '/patchnotes', label: '패치노트' },
+      ]
+    : role === 'test'
     ? [
         { href: '/daily', label: '일일보고' },
         { href: '/weekly', label: '주간보고' },

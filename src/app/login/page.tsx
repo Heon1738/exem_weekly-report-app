@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { LATEST_PATCH } from '@/lib/patchnotes'
 
 type AppState = 'loading' | 'not_initialized' | 'no_members' | 'ready'
 
@@ -185,42 +186,10 @@ export default function LoginPage() {
     )
   }
 
-  const patchNotes = [
-    {
-      date: '2026-04-08',
-      items: [
-        'test 계정 추가: 데이터 저장 없이 기능 체험 가능 (패스워드: 1234)',
-        '보고관리: admin/test 계정 열람 블러 처리',
-        '주간보고 자동생성: 생성할 주차 선택 기능',
-        '주차 표기 수정: 월 경계 주간 → 새 달 1주차로 표기',
-        'UI 개선: Inter 폰트, 카드 섀도우, 모바일 햄버거 메뉴',
-        'Notion 연동 가이드 상세화',
-      ],
-    },
-  ]
-
   return (
-    <div className="min-h-screen bg-notion-sidebar flex items-center justify-center p-4">
-      <div className="w-full max-w-3xl flex flex-col lg:flex-row gap-6 items-start justify-center">
+    <div className="min-h-screen bg-notion-sidebar flex flex-col items-center justify-center p-4 gap-6">
 
-      {/* 패치노트 패널 */}
-      <div className="w-full lg:w-64 shrink-0">
-        <div className="card text-xs">
-          <p className="text-sm font-semibold text-notion-text mb-3">📋 패치노트</p>
-          {patchNotes.map(n => (
-            <div key={n.date} className="mb-3 last:mb-0">
-              <p className="text-xs font-medium text-notion-blue mb-1">{n.date}</p>
-              <ul className="space-y-1">
-                {n.items.map((item, i) => (
-                  <li key={i} className="text-notion-gray leading-relaxed">• {item}</li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* 로그인 영역 */}
+      {/* 로그인 영역 — 항상 중앙 */}
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <div className="text-4xl mb-3">📋</div>
@@ -314,7 +283,25 @@ export default function LoginPage() {
           </form>
         )}
       </div>
+
+      {/* 패치노트 — 로그인 폼 아래, 최신 날짜만 */}
+      <div className="w-full max-w-sm">
+        <div className="card text-xs">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm font-semibold text-notion-text">패치노트</p>
+            <span className="text-xs font-medium text-notion-blue">{LATEST_PATCH.date}</span>
+          </div>
+          <ul className="space-y-1.5">
+            {LATEST_PATCH.items.map((item, i) => (
+              <li key={i} className="text-notion-gray leading-relaxed flex gap-1.5">
+                <span className="text-notion-blue shrink-0">•</span>
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
+
     </div>
   )
 }
