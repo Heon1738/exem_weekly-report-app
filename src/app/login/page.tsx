@@ -287,15 +287,18 @@ export default function LoginPage() {
       {/* 패치노트 — 로그인 폼 아래, 최신 날짜만 */}
       <div className="w-full max-w-sm">
         <div className="card text-xs">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-sm font-semibold text-notion-text">패치노트</p>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-semibold text-notion-text">패치노트</p>
+              <span className="text-xs bg-blue-50 text-blue-600 border border-blue-100 px-1.5 py-0.5 rounded-full font-medium">🆕 NEW</span>
+            </div>
             <span className="text-xs font-medium text-notion-blue">{LATEST_PATCH.date}</span>
           </div>
-          <ul className="space-y-1.5">
+          <ul className="space-y-2">
             {LATEST_PATCH.items.map((item, i) => (
-              <li key={i} className="text-notion-gray leading-relaxed flex gap-1.5">
-                <span className="text-notion-blue shrink-0">•</span>
-                <span>{item}</span>
+              <li key={i} className="leading-relaxed flex gap-1.5 items-start">
+                <span className="text-notion-blue shrink-0 mt-0.5">•</span>
+                <span className="text-notion-gray">{item}</span>
               </li>
             ))}
           </ul>
