@@ -359,7 +359,20 @@ export interface FeedbackItem {
   createdAt: string
 }
 
+export async function ensureFeedbackTable(): Promise<void> {
+  await sql`
+    CREATE TABLE IF NOT EXISTS feedback (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+      author_name TEXT NOT NULL,
+      content TEXT NOT NULL,
+      is_read BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `
+}
+
 export async function createFeedback(authorName: string, content: string): Promise<string> {
+  await ensureFeedbackTable()
   const [row] = await sql`
     INSERT INTO feedback (author_name, content)
     VALUES (${authorName}, ${content})
@@ -370,6 +383,7 @@ export async function createFeedback(authorName: string, content: string): Promi
 
 export async function getFeedbackList(): Promise<FeedbackItem[]> {
   try {
+    await ensureFeedbackTable()
     const rows = await sql`
       SELECT id, author_name, content, is_read, created_at
       FROM feedback
@@ -387,6 +401,7 @@ export async function getFeedbackList(): Promise<FeedbackItem[]> {
 
 export async function getUnreadFeedbackCount(): Promise<number> {
   try {
+    await ensureFeedbackTable()
     const [{ cnt }] = await sql`SELECT COUNT(*)::int as cnt FROM feedback WHERE is_read = FALSE`
     return Number(cnt)
   } catch { return 0 }
@@ -397,5 +412,115 @@ export async function markFeedbackRead(id: string): Promise<void> {
 }
 
 export async function markAllFeedbackRead(): Promise<void> {
+  await ensureFeedbackTable()
   await sql`UPDATE feedback SET is_read = TRUE WHERE is_read = FALSE`
+}
+
+// ─────────────────────────────────────────────
+// 패치노트 (DB 관리)
+// ─────────────────────────────────────────────
+export interface PatchNoteRow {
+  id: string
+  date: string
+  items: string[]
+  createdAt: string
+}
+
+const PATCH_NOTES_SEED = [
+  {
+    date: '2026-04-04',
+    items: [
+      'admin 계정 기능 추가: 보고관리 탭 접근 및 전체 Notion 내보내기',
+      '보고관리: 팀원별 일일보고/주간보고 현황 조회 기능',
+      'Notion 연동: 개인 토큰 및 DB ID 설정 기능',
+      '주간보고: AI 자동채우기(Groq) 기능 추가',
+      '환경설정: 팀원 관리, 지원 범례, 조직명 설정',
+    ],
+  },
+  {
+    date: '2026-04-07',
+    items: [
+      'admin 계정 블러 처리 위치 변경: 일일보고/주간보고 탭 → 보고관리 탭 내부로 이동',
+      '주차 표기 수정: 월 경계 주간(예: 3/31~4/4) → 새 달 1주차로 표기',
+      'UI 전면 개선: Inter 폰트 적용, 카드 섀도우, 버튼 호버 효과, 스크롤바 스타일',
+      'Navbar 리디자인: sticky 헤더, SVG 로고, 활성 탭 강조, 모바일 햄버거 메뉴',
+      'Notion 연동 가이드 상세화: DB ID 찾는 방법 단계별 안내',
+    ],
+  },
+  {
+    date: '2026-04-08',
+    items: [
+      'test 계정 추가: 데이터 저장 없이 기능 체험 가능 (패스워드: 1234)',
+      'test 권한: 보고관리 블러 처리, 저장/삭제/내보내기 비활성화',
+      '주간보고 자동생성: 생성할 주차 다중 선택 기능',
+      '패치노트 페이지 추가: admin 계정 전용 전체 이력 조회',
+      '개선 요청 페이지 추가: 팀원 의견 제출 및 admin 목록 확인',
+      '로그인 화면: 최신 패치노트를 로그인 폼 하단에 표시',
+    ],
+  },
+]
+
+export async function ensurePatchNotesTable(): Promise<void> {
+  await sql`
+    CREATE TABLE IF NOT EXISTS patch_notes (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+      date DATE NOT NULL UNIQUE,
+      items JSONB NOT NULL DEFAULT '[]'::jsonb,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `
+  // 초기 데이터 시드 (비어 있을 때만)
+  const [{ cnt }] = await sql`SELECT COUNT(*)::int as cnt FROM patch_notes`
+  if (Number(cnt) === 0) {
+    for (const entry of PATCH_NOTES_SEED) {
+      await sql`
+        INSERT INTO patch_notes (date, items)
+        VALUES (${entry.date}::date, ${JSON.stringify(entry.items)}::jsonb)
+        ON CONFLICT (date) DO NOTHING
+      `
+    }
+  }
+}
+
+export async function getPatchNotes(): Promise<PatchNoteRow[]> {
+  await ensurePatchNotesTable()
+  const rows = await sql`
+    SELECT id, date::text, items, created_at
+    FROM patch_notes
+    ORDER BY date DESC
+  `
+  return rows.map(r => ({
+    id: r.id,
+    date: r.date.slice(0, 10),
+    items: r.items as string[],
+    createdAt: r.created_at,
+  }))
+}
+
+export async function getLatestPatchNote(): Promise<PatchNoteRow | null> {
+  await ensurePatchNotesTable()
+  const rows = await sql`
+    SELECT id, date::text, items, created_at
+    FROM patch_notes
+    ORDER BY date DESC
+    LIMIT 1
+  `
+  if (!rows.length) return null
+  const r = rows[0]
+  return { id: r.id, date: r.date.slice(0, 10), items: r.items as string[], createdAt: r.created_at }
+}
+
+export async function upsertPatchNote(date: string, items: string[]): Promise<string> {
+  await ensurePatchNotesTable()
+  const [row] = await sql`
+    INSERT INTO patch_notes (date, items)
+    VALUES (${date}::date, ${JSON.stringify(items)}::jsonb)
+    ON CONFLICT (date) DO UPDATE SET items = EXCLUDED.items
+    RETURNING id
+  `
+  return row.id
+}
+
+export async function deletePatchNote(id: string): Promise<void> {
+  await sql`DELETE FROM patch_notes WHERE id = ${id}`
 }

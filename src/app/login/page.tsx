@@ -2,12 +2,20 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { LATEST_PATCH } from '@/lib/patchnotes'
-
 type AppState = 'loading' | 'not_initialized' | 'no_members' | 'ready'
+
+interface PatchNote { date: string; items: string[] }
 
 export default function LoginPage() {
   const router = useRouter()
+  const [latestPatch, setLatestPatch] = useState<PatchNote | null>(null)
+
+  useEffect(() => {
+    fetch('/api/patchnotes/latest')
+      .then(r => r.json())
+      .then(d => { if (d?.date) setLatestPatch(d) })
+      .catch(() => {})
+  }, [])
   const [appState, setAppState] = useState<AppState>('loading')
   const [memberNames, setMemberNames] = useState<string[]>([])
   const [selectedName, setSelectedName] = useState('')
@@ -285,6 +293,7 @@ export default function LoginPage() {
       </div>
 
       {/* 패치노트 — 로그인 폼 아래, 최신 날짜만 */}
+      {latestPatch && (
       <div className="w-full max-w-sm">
         <div className="card text-xs">
           <div className="flex items-center justify-between mb-3">
@@ -292,10 +301,10 @@ export default function LoginPage() {
               <p className="text-sm font-semibold text-notion-text">패치노트</p>
               <span className="text-xs bg-blue-50 text-blue-600 border border-blue-100 px-1.5 py-0.5 rounded-full font-medium">NEW</span>
             </div>
-            <span className="text-xs font-medium text-notion-blue">{LATEST_PATCH.date}</span>
+            <span className="text-xs font-medium text-notion-blue">{latestPatch.date}</span>
           </div>
           <ul className="space-y-2">
-            {LATEST_PATCH.items.map((item, i) => (
+            {latestPatch.items.map((item, i) => (
               <li key={i} className="leading-relaxed flex gap-1.5 items-start">
                 <span className="text-notion-blue shrink-0 mt-0.5">•</span>
                 <span className="text-notion-gray">{item}</span>
@@ -304,6 +313,7 @@ export default function LoginPage() {
           </ul>
         </div>
       </div>
+      )}
 
     </div>
   )
