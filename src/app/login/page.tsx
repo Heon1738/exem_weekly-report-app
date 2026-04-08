@@ -263,7 +263,6 @@ export default function LoginPage() {
               <label className="block text-sm font-medium text-notion-text mb-1.5">이름</label>
               <input
                 type="text"
-                list="member-names"
                 value={selectedName}
                 onChange={e => setSelectedName(e.target.value)}
                 placeholder="이름을 입력하세요"
@@ -271,11 +270,6 @@ export default function LoginPage() {
                 autoComplete="off"
                 required
               />
-              <datalist id="member-names">
-                {memberNames.map(name => (
-                  <option key={name} value={name} />
-                ))}
-              </datalist>
             </div>
             <div>
               <label className="block text-sm font-medium text-notion-text mb-1.5">패스워드</label>
