@@ -50,7 +50,7 @@ export default function LoginPage() {
         else if (!data.hasMembers) setAppState('no_members')
         else {
           setMemberNames(data.names || [])
-          if (data.names?.length > 0) setSelectedName(data.names[0])
+          setSelectedName('')
           setAppState('ready')
         }
       } else {
@@ -261,16 +261,21 @@ export default function LoginPage() {
           <form onSubmit={handleLogin} className="card space-y-4">
             <div>
               <label className="block text-sm font-medium text-notion-text mb-1.5">이름</label>
-              <select
+              <input
+                type="text"
+                list="member-names"
                 value={selectedName}
                 onChange={e => setSelectedName(e.target.value)}
+                placeholder="이름을 입력하세요"
                 className="input-field"
+                autoComplete="off"
                 required
-              >
+              />
+              <datalist id="member-names">
                 {memberNames.map(name => (
-                  <option key={name} value={name}>{name}</option>
+                  <option key={name} value={name} />
                 ))}
-              </select>
+              </datalist>
             </div>
             <div>
               <label className="block text-sm font-medium text-notion-text mb-1.5">패스워드</label>
