@@ -1,204 +1,308 @@
 'use client'
 
-import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
 export default function NotionSetupPage() {
   const router = useRouter()
-  const [token, setToken] = useState('')
-  const [parentPageId, setParentPageId] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [hasEnvConfig, setHasEnvConfig] = useState(false)
-  const [hasCustomConfig, setHasCustomConfig] = useState(false)
-  const [clearLoading, setClearLoading] = useState(false)
-
-  useEffect(() => {
-    fetch('/api/notion-setup').then(r => r.json()).then(d => {
-      setHasEnvConfig(d.hasEnvConfig)
-      setHasCustomConfig(d.hasCustomConfig)
-    })
-  }, [])
-
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setError('')
-    try {
-      const res = await fetch('/api/notion-setup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, parentPageId }),
-      })
-      const data = await res.json()
-      if (res.ok) {
-        const setupRes = await fetch('/api/setup', { method: 'POST' })
-        if (setupRes.ok) {
-          router.push('/login')
-        } else {
-          const setupData = await setupRes.json()
-          setError(setupData.error || 'DB 초기화에 실패했습니다.')
-        }
-      } else {
-        setError(data.error || '설정 저장에 실패했습니다.')
-      }
-    } catch {
-      setError('오류가 발생했습니다.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleClear = async () => {
-    if (!confirm('현재 Notion 설정을 초기화하시겠습니까?')) return
-    setClearLoading(true)
-    await fetch('/api/notion-setup', { method: 'DELETE' })
-    setHasCustomConfig(false)
-    setClearLoading(false)
-  }
 
   return (
-    <div className="min-h-screen bg-notion-sidebar flex items-center justify-center p-4">
-      <div className="w-full max-w-lg">
+    <div className="min-h-screen bg-notion-sidebar py-10 px-4">
+      <div className="max-w-2xl mx-auto space-y-6">
+
+        {/* 헤더 */}
         <div className="text-center mb-8">
           <div className="text-4xl mb-3">🔗</div>
-          <h1 className="text-2xl font-semibold text-notion-text">Notion 연동 설정</h1>
-          <p className="text-sm text-notion-gray mt-1">팀 주간보고 데이터베이스와 연결합니다</p>
+          <h1 className="text-2xl font-semibold text-notion-text">개인 Notion 연동 가이드</h1>
+          <p className="text-sm text-notion-gray mt-1">
+            각자의 Notion 워크스페이스에 주간보고를 내보내기 위한 설정 방법입니다.
+          </p>
         </div>
 
-        {hasEnvConfig && !hasCustomConfig && (
-          <div className="card mb-4 bg-green-50 border-green-200">
-            <p className="text-sm text-green-700">
-              <strong>현재 상태:</strong> 서버 환경 변수로 Notion이 연결되어 있습니다.
-            </p>
-            <button onClick={() => router.push('/login')} className="mt-2 text-sm text-green-700 underline">
-              기본 설정 사용하고 로그인 →
-            </button>
+        {/* 개요 */}
+        <div className="card bg-blue-50 border-blue-200">
+          <p className="text-xs font-semibold text-blue-800 mb-2">📌 연동 개요</p>
+          <p className="text-xs text-blue-800 leading-relaxed">
+            이 앱에서 <strong>Notion 내보내기</strong>를 누르면, 각자의 개인 Notion 데이터베이스에 주간보고가 자동으로 생성됩니다.
+            설정은 팀원 개인이 각자 진행하며, 연동 후 설정 → 내 정보 탭에서 토큰과 DB ID를 입력하면 완료됩니다.
+          </p>
+          <div className="mt-3 flex items-center gap-2 text-xs text-blue-700 font-medium">
+            <span className="bg-blue-200 rounded-full px-2 py-0.5">STEP 1</span>
+            <span>Integration 생성</span>
+            <span className="text-blue-400">→</span>
+            <span className="bg-blue-200 rounded-full px-2 py-0.5">STEP 2</span>
+            <span>DB 준비</span>
+            <span className="text-blue-400">→</span>
+            <span className="bg-blue-200 rounded-full px-2 py-0.5">STEP 3</span>
+            <span>연결 후 ID 복사</span>
+            <span className="text-blue-400">→</span>
+            <span className="bg-blue-200 rounded-full px-2 py-0.5">STEP 4</span>
+            <span>앱에 입력</span>
           </div>
-        )}
+        </div>
 
-        {hasCustomConfig && (
-          <div className="card mb-4 bg-blue-50 border-blue-200">
-            <p className="text-sm text-blue-700">
-              <strong>현재 상태:</strong> Notion 설정이 적용되어 있습니다.
-            </p>
-            <div className="flex gap-2 mt-2">
-              <button onClick={() => router.push('/login')} className="text-sm text-blue-700 underline">
-                그대로 사용 →
-              </button>
-              <span className="text-blue-300">|</span>
-              <button onClick={handleClear} disabled={clearLoading} className="text-sm text-red-500 underline">
-                {clearLoading ? '초기화 중...' : '설정 초기화'}
-              </button>
-            </div>
+        {/* STEP 1 */}
+        <div className="card">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="bg-notion-blue text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center shrink-0">1</span>
+            <h2 className="text-sm font-semibold text-notion-text">Notion Integration 생성 및 토큰 복사</h2>
           </div>
-        )}
 
-        {/* ── 팀 공용 설정 (팀장 1회) ── */}
-        <div className="card mb-4">
-          <p className="text-xs font-semibold text-notion-blue mb-3">👑 팀장 설정 (1회만)</p>
-          <form onSubmit={handleSave} className="space-y-4">
-            <div>
-              <label className="block text-xs font-medium text-notion-text mb-1">
-                Notion Integration Token <span className="text-red-400">*</span>
-              </label>
-              <input
-                type="password"
-                value={token}
-                onChange={e => setToken(e.target.value)}
-                placeholder="secret_xxxxxxxxxxxxxxxxxxxx"
-                className="input-field font-mono text-xs"
-                required
-              />
-              <p className="text-xs text-notion-gray mt-1">
-                <span className="font-mono">notion.so/my-integrations</span> → Internal Integration 생성 → Secret 복사
-              </p>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-notion-text mb-1">
-                팀 공용 주간보고 DB ID <span className="text-red-400">*</span>
-              </label>
-              <input
-                type="text"
-                value={parentPageId}
-                onChange={e => setParentPageId(e.target.value)}
-                placeholder="1f33d7eebe4181eaa60ad290ab162b40"
-                className="input-field font-mono text-xs"
-                required
-              />
-              <p className="text-xs text-notion-gray mt-1">
-                팀 공용 주간보고 데이터베이스 ID. 개인 DB ID를 설정하지 않은 팀원은 여기로 내보내집니다.
-              </p>
-            </div>
-            {error && <p className="text-sm text-red-500">{error}</p>}
-            <button type="submit" disabled={loading} className="btn-primary w-full">
-              {loading ? '연결 확인 중...' : '저장 및 초기화'}
-            </button>
-          </form>
-        </div>
-
-        {/* ── Integration 설정 방법 ── */}
-        <div className="card mb-3 bg-notion-yellow-bg border-yellow-200">
-          <p className="text-xs font-semibold text-yellow-800 mb-2">📋 1단계: Integration 생성 및 DB 연결</p>
-          <ol className="text-xs text-yellow-800 space-y-1.5 list-decimal list-inside">
-            <li><span className="font-mono">notion.so/my-integrations</span> → <strong>New integration</strong> → Internal → 이름 입력 후 Submit</li>
-            <li>생성된 <strong>Internal Integration Secret</strong> 복사 → 위 토큰 입력란에 붙여넣기</li>
-            <li>Notion에서 주간보고 DB 열기 → 우상단 <strong>···</strong> → <strong>Connections</strong> → 생성한 Integration 연결</li>
-            <li>DB URL에서 ID 복사 → 위 DB ID 입력란에 붙여넣기</li>
-          </ol>
-        </div>
-
-        {/* ── DB ID 찾는 방법 ── */}
-        <div className="card mb-3 bg-blue-50 border-blue-200">
-          <p className="text-xs font-semibold text-blue-800 mb-2">🔍 DB ID 찾는 방법</p>
-          <p className="text-xs text-blue-800 mb-2">Notion에서 주간보고 데이터베이스를 열면 URL이 아래처럼 보입니다:</p>
-          <p className="text-xs font-mono bg-blue-100 px-2 py-1.5 rounded mb-2 break-all">
-            notion.so/<span className="font-bold text-blue-900">1f33d7eebe4181eaa60ad290ab162b40</span>?v=...
-          </p>
-          <p className="text-xs text-blue-800"><span className="font-mono">?v=</span> 앞의 굵은 부분 32자리가 DB ID입니다.</p>
-          <p className="text-xs text-blue-700 mt-2">※ DB가 아닌 일반 페이지 URL이라면: <span className="font-mono">notion.so/제목-<strong>32자리</strong></span> 형태의 마지막 32자리</p>
-        </div>
-
-        {/* ── Notion 내보내기 연동 흐름 ── */}
-        <div className="card mb-3 bg-gray-50 border-gray-200">
-          <p className="text-xs font-semibold text-gray-700 mb-2">🔄 Notion 내보내기 동작 방식</p>
-          <p className="text-xs text-gray-700 mb-2">
-            주간보고 화면에서 <strong>Notion 내보내기</strong>를 누르면 아래 우선순위로 DB를 결정합니다:
-          </p>
-          <ol className="text-xs text-gray-700 space-y-1 list-decimal list-inside mb-2">
-            <li><strong>개인 DB ID</strong>가 설정되어 있으면 → 개인 DB에 내보내기</li>
-            <li>개인 DB ID가 없으면 → <strong>팀 공용 DB ID</strong> (위에서 팀장이 설정한 값)에 내보내기</li>
-          </ol>
-          <p className="text-xs text-gray-600">
-            ※ 토큰도 마찬가지: 개인 토큰이 있으면 개인 토큰 사용, 없으면 팀 공용 토큰 사용
-          </p>
-        </div>
-
-        {/* ── 팀원 개인 설정 안내 ── */}
-        <div className="card bg-purple-50 border-purple-200">
-          <p className="text-xs font-semibold text-purple-800 mb-2">👤 팀원 개인 설정 (각자 진행)</p>
-          <p className="text-xs text-purple-800 mb-2">
-            별도 워크스페이스를 사용하거나 개인 주간보고 DB가 있는 팀원은 아래 방법으로 개인 설정을 추가합니다.
-          </p>
-          <ol className="text-xs text-purple-800 space-y-1.5 list-decimal list-inside">
-            <li>내 Notion에서 주간보고 DB 열기 (없으면 새로 생성)</li>
-            <li>DB에 필수 속성 추가:
-              <ul className="list-disc list-inside ml-4 mt-1 space-y-0.5">
-                <li><span className="font-mono font-bold">주간보고서 (클릭)</span> — 제목(Title) 형식</li>
-                <li><span className="font-mono font-bold">보고 기간</span> — 날짜(Date) 형식</li>
-                <li><span className="font-mono font-bold">작성 일자</span> — 날짜(Date) 형식</li>
-                <li><span className="font-mono font-bold">작성자</span> — 텍스트(Text) 형식</li>
-              </ul>
+          <ol className="space-y-4 text-xs text-notion-text">
+            <li className="flex gap-3">
+              <span className="shrink-0 text-notion-gray font-medium">1-1</span>
+              <div className="space-y-2 w-full">
+                <p>브라우저에서 아래 주소로 이동합니다.</p>
+                <div className="bg-notion-gray-bg border border-notion-border rounded px-3 py-2 font-mono text-notion-blue select-all">
+                  notion.so/profile/integrations
+                </div>
+                <p className="text-notion-gray">※ 구버전 UI라면 <span className="font-mono">notion.so/my-integrations</span> 로 접속하세요.</p>
+              </div>
             </li>
-            <li>DB에 팀 Integration 연결 (···→ Connections)</li>
-            <li>DB ID 복사 (위의 <strong>DB ID 찾는 방법</strong> 참고)</li>
-            <li>앱 <strong>환경설정 → 내 정보 탭</strong> → <strong>개인 Notion 주간보고 DB ID</strong> 입력 후 저장</li>
-            <li>별도 워크스페이스라면: 직접 Integration 생성 후 <strong>개인 Notion Integration 토큰</strong>도 함께 입력</li>
+
+            <li className="flex gap-3">
+              <span className="shrink-0 text-notion-gray font-medium">1-2</span>
+              <div className="space-y-2 w-full">
+                <p><strong>New integration</strong> 버튼을 클릭합니다.</p>
+                {/* 버튼 모형 */}
+                <div className="border border-notion-border rounded-lg p-3 bg-white space-y-2">
+                  <p className="text-notion-gray text-xs">My integrations 화면</p>
+                  <div className="flex justify-between items-center">
+                    <span className="text-notion-text text-xs font-medium">My integrations</span>
+                    <span className="bg-notion-blue text-white text-xs px-3 py-1 rounded font-medium">+ New integration</span>
+                  </div>
+                </div>
+              </div>
+            </li>
+
+            <li className="flex gap-3">
+              <span className="shrink-0 text-notion-gray font-medium">1-3</span>
+              <div className="space-y-2 w-full">
+                <p>아래와 같이 설정 후 <strong>Save</strong> 또는 <strong>Submit</strong>을 클릭합니다.</p>
+                <div className="border border-notion-border rounded-lg p-3 bg-white space-y-2 text-xs">
+                  <div className="flex justify-between border-b border-notion-border pb-2 mb-2">
+                    <span className="text-notion-gray">Name</span>
+                    <span className="text-notion-text font-medium">주간보고 (예시 이름)</span>
+                  </div>
+                  <div className="flex justify-between border-b border-notion-border pb-2 mb-2">
+                    <span className="text-notion-gray">Associated workspace</span>
+                    <span className="text-notion-text font-medium">내 워크스페이스 선택</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-notion-gray">Type</span>
+                    <span className="text-notion-text font-medium">Internal ✓</span>
+                  </div>
+                </div>
+              </div>
+            </li>
+
+            <li className="flex gap-3">
+              <span className="shrink-0 text-notion-gray font-medium">1-4</span>
+              <div className="space-y-2 w-full">
+                <p>생성된 Integration 페이지에서 <strong>Internal Integration Secret</strong>을 복사합니다.</p>
+                <div className="border border-notion-border rounded-lg p-3 bg-white space-y-2 text-xs">
+                  <p className="text-notion-gray">Secrets 섹션</p>
+                  <div className="flex items-center justify-between bg-notion-gray-bg rounded px-2 py-1.5">
+                    <span className="font-mono text-notion-text">secret_xxxxxxxxxxxxxxxxxxx...</span>
+                    <span className="bg-notion-blue text-white text-xs px-2 py-0.5 rounded cursor-pointer">Copy</span>
+                  </div>
+                </div>
+                <p className="text-notion-gray">복사한 값 = <strong>Integration 토큰</strong> (STEP 4에서 입력)</p>
+              </div>
+            </li>
           </ol>
-          <div className="mt-3 p-2 bg-purple-100 rounded text-xs text-purple-900">
-            <strong>저장 후 확인:</strong> 주간보고 화면 → Notion 내보내기 → 내 개인 DB에 항목이 생성되면 성공
+        </div>
+
+        {/* STEP 2 */}
+        <div className="card">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="bg-notion-blue text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center shrink-0">2</span>
+            <h2 className="text-sm font-semibold text-notion-text">Notion에 주간보고 데이터베이스 준비</h2>
+          </div>
+
+          <p className="text-xs text-notion-gray mb-4">이미 주간보고 DB가 있다면 STEP 3으로 넘어가세요. DB가 없다면 아래처럼 새로 만듭니다.</p>
+
+          <ol className="space-y-4 text-xs text-notion-text">
+            <li className="flex gap-3">
+              <span className="shrink-0 text-notion-gray font-medium">2-1</span>
+              <div className="space-y-1">
+                <p>Notion에서 새 페이지를 만든 후, <strong>/database</strong> 를 입력하여 <strong>Full page database</strong> 또는 <strong>Table</strong>을 생성합니다.</p>
+              </div>
+            </li>
+
+            <li className="flex gap-3">
+              <span className="shrink-0 text-notion-gray font-medium">2-2</span>
+              <div className="space-y-2 w-full">
+                <p>DB에 아래 <strong>4가지 속성(컬럼)</strong>을 반드시 추가합니다.</p>
+                <div className="border border-notion-border rounded-lg overflow-hidden text-xs">
+                  <div className="bg-notion-gray-bg px-3 py-2 grid grid-cols-2 gap-2 font-semibold text-notion-gray border-b border-notion-border">
+                    <span>속성 이름 (정확히 입력)</span>
+                    <span>타입</span>
+                  </div>
+                  {[
+                    ['주간보고서 (클릭)', 'Title (기본값)'],
+                    ['보고 기간', 'Date'],
+                    ['작성 일자', 'Date'],
+                    ['작성자', 'Text'],
+                  ].map(([name, type]) => (
+                    <div key={name} className="px-3 py-2 grid grid-cols-2 gap-2 border-b border-notion-border last:border-0 bg-white">
+                      <span className="font-mono font-medium text-notion-text">{name}</span>
+                      <span className="text-notion-gray">{type}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="bg-yellow-50 border border-yellow-200 rounded px-2 py-1.5 text-xs text-yellow-800">
+                  ⚠️ 속성 이름이 정확히 일치해야 내보내기가 정상 동작합니다. 띄어쓰기·괄호 포함 그대로 복사하세요.
+                </div>
+              </div>
+            </li>
+          </ol>
+        </div>
+
+        {/* STEP 3 */}
+        <div className="card">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="bg-notion-blue text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center shrink-0">3</span>
+            <h2 className="text-sm font-semibold text-notion-text">DB에 Integration 연결 후 DB ID 복사</h2>
+          </div>
+
+          <ol className="space-y-4 text-xs text-notion-text">
+            <li className="flex gap-3">
+              <span className="shrink-0 text-notion-gray font-medium">3-1</span>
+              <div className="space-y-2 w-full">
+                <p>주간보고 DB 페이지 우측 상단 <strong>···</strong> (더보기) 버튼을 클릭합니다.</p>
+                <div className="border border-notion-border rounded-lg p-3 bg-white text-xs">
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium text-notion-text">주간보고 DB</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-notion-gray">Filter</span>
+                      <span className="text-notion-gray">Sort</span>
+                      <span className="bg-notion-gray-bg rounded px-1.5 py-0.5 font-bold text-notion-text cursor-pointer">···</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </li>
+
+            <li className="flex gap-3">
+              <span className="shrink-0 text-notion-gray font-medium">3-2</span>
+              <div className="space-y-2 w-full">
+                <p>메뉴에서 <strong>Connections</strong> (또는 <strong>Connect to</strong>)를 선택합니다.</p>
+                <div className="border border-notion-border rounded-lg p-2 bg-white text-xs space-y-1 w-40">
+                  {['Filter', 'Sort', 'Group by', '—', 'Connections ▶', 'Copy link'].map((item, i) => (
+                    <div key={i} className={`px-2 py-1 rounded text-xs ${item === 'Connections ▶' ? 'bg-blue-50 text-notion-blue font-semibold' : item === '—' ? 'border-t border-notion-border my-0.5' : 'text-notion-gray'}`}>
+                      {item !== '—' && item}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </li>
+
+            <li className="flex gap-3">
+              <span className="shrink-0 text-notion-gray font-medium">3-3</span>
+              <div>
+                <p>STEP 1에서 만든 Integration을 검색하여 선택합니다. <strong>Confirm</strong>을 눌러 연결을 완료합니다.</p>
+              </div>
+            </li>
+
+            <li className="flex gap-3">
+              <span className="shrink-0 text-notion-gray font-medium">3-4</span>
+              <div className="space-y-2 w-full">
+                <p>DB가 열린 상태에서 브라우저 주소창 URL을 확인합니다. <strong>?v= 앞의 32자리</strong>가 DB ID입니다.</p>
+                <div className="border border-notion-border rounded-lg px-3 py-2 bg-white text-xs font-mono break-all">
+                  notion.so/<span className="bg-yellow-200 text-yellow-900 font-bold px-0.5 rounded">1f33d7eebe4181eaa60ad290ab162b40</span>?v=abc123...
+                </div>
+                <p className="text-notion-gray">노란색으로 표시된 32자리 = <strong>DB ID</strong> (STEP 4에서 입력)</p>
+                <div className="bg-notion-gray-bg border border-notion-border rounded px-2 py-1.5 text-xs text-notion-gray">
+                  💡 URL에 <span className="font-mono">?v=</span> 가 없다면 일반 페이지입니다. DB를 full page로 열거나, DB 제목을 클릭해 별도 탭으로 열면 URL에서 ID를 확인할 수 있습니다.
+                </div>
+              </div>
+            </li>
+          </ol>
+        </div>
+
+        {/* STEP 4 */}
+        <div className="card">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="bg-notion-blue text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center shrink-0">4</span>
+            <h2 className="text-sm font-semibold text-notion-text">앱 환경설정에서 토큰 및 DB ID 입력</h2>
+          </div>
+
+          <ol className="space-y-3 text-xs text-notion-text">
+            <li className="flex gap-3">
+              <span className="shrink-0 text-notion-gray font-medium">4-1</span>
+              <p>상단 네비게이션 바에서 <strong>환경설정</strong>을 클릭합니다.</p>
+            </li>
+            <li className="flex gap-3">
+              <span className="shrink-0 text-notion-gray font-medium">4-2</span>
+              <p><strong>내 정보</strong> 탭을 선택합니다.</p>
+            </li>
+            <li className="flex gap-3">
+              <span className="shrink-0 text-notion-gray font-medium">4-3</span>
+              <div className="space-y-2 w-full">
+                <p>아래 두 항목을 입력 후 <strong>저장</strong>을 클릭합니다.</p>
+                <div className="border border-notion-border rounded-lg p-3 bg-white space-y-3 text-xs">
+                  <div>
+                    <p className="text-notion-gray mb-1">개인 Notion Integration 토큰</p>
+                    <div className="bg-notion-gray-bg rounded px-2 py-1.5 font-mono text-notion-gray">
+                      secret_xxxxxxxxxxxxxxxxxxx... (STEP 1-4에서 복사한 값)
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-notion-gray mb-1">개인 Notion 주간보고 DB ID</p>
+                    <div className="bg-notion-gray-bg rounded px-2 py-1.5 font-mono text-notion-gray">
+                      1f33d7eebe4181eaa60ad290ab162b40 (STEP 3-4에서 복사한 값)
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </li>
+          </ol>
+
+          <div className="mt-4 bg-green-50 border border-green-200 rounded-lg px-3 py-2.5 text-xs text-green-800">
+            <p className="font-semibold mb-1">✅ 설정 완료 후 확인 방법</p>
+            <p>주간보고 화면 → <strong>Notion 내보내기</strong> 버튼 클릭 → 내 Notion DB에 새 항목이 생성되면 성공입니다.</p>
           </div>
         </div>
+
+        {/* 자주 묻는 질문 */}
+        <div className="card bg-gray-50 border-gray-200">
+          <p className="text-xs font-semibold text-notion-text mb-3">❓ 자주 묻는 질문</p>
+          <div className="space-y-3 text-xs">
+            <div>
+              <p className="font-medium text-notion-text">Q. Notion 내보내기를 눌렀는데 오류가 납니다.</p>
+              <p className="text-notion-gray mt-0.5">→ Integration 토큰과 DB ID가 올바른지 확인하고, DB에 Integration이 연결(Connections)되어 있는지 확인하세요.</p>
+            </div>
+            <div>
+              <p className="font-medium text-notion-text">Q. DB ID를 어디서 찾아야 하나요?</p>
+              <p className="text-notion-gray mt-0.5">→ Notion에서 DB를 전체 화면으로 열면 URL이 <span className="font-mono">notion.so/[32자리ID]?v=...</span> 형태로 보입니다. ?v= 앞의 32자리가 DB ID입니다.</p>
+            </div>
+            <div>
+              <p className="font-medium text-notion-text">Q. Integration은 어떤 권한이 필요한가요?</p>
+              <p className="text-notion-gray mt-0.5">→ Internal Integration으로 생성하면 기본 Read/Write 권한이 부여됩니다. 별도 권한 설정은 불필요합니다.</p>
+            </div>
+            <div>
+              <p className="font-medium text-notion-text">Q. 속성 이름을 잘못 입력했어요.</p>
+              <p className="text-notion-gray mt-0.5">→ Notion DB에서 해당 속성 이름을 클릭해 STEP 2의 표와 동일하게 수정하면 됩니다.</p>
+            </div>
+          </div>
+        </div>
+
+        {/* 하단 버튼 */}
+        <div className="flex gap-3">
+          <button
+            onClick={() => router.push('/settings')}
+            className="btn-primary flex-1"
+          >
+            환경설정으로 이동 (토큰·DB ID 입력)
+          </button>
+          <button
+            onClick={() => router.back()}
+            className="flex-1 px-4 py-2 text-sm border border-notion-border rounded-lg text-notion-gray hover:bg-notion-gray-bg transition-colors"
+          >
+            돌아가기
+          </button>
+        </div>
+
       </div>
     </div>
   )
