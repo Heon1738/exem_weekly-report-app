@@ -62,6 +62,16 @@ export async function initSchema(): Promise<void> {
     )
   `
 
+  await sql`
+    CREATE TABLE IF NOT EXISTS feedback (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+      author_name TEXT NOT NULL,
+      content TEXT NOT NULL,
+      is_read BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `
+
   // 기존 테이블 컬럼 마이그레이션 (IF NOT EXISTS로 안전하게 추가)
   await sql`ALTER TABLE legends ADD COLUMN IF NOT EXISTS display_order INTEGER DEFAULT 0`
   await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS notion_token TEXT NOT NULL DEFAULT ''`
@@ -336,4 +346,56 @@ export async function getWeeklyDraftsList(authorName: string): Promise<{ weekSta
       updatedAt: r.updated_at,
     }))
   } catch { return [] }
+}
+
+// ─────────────────────────────────────────────
+// 개선 요청 (Feedback)
+// ─────────────────────────────────────────────
+export interface FeedbackItem {
+  id: string
+  authorName: string
+  content: string
+  isRead: boolean
+  createdAt: string
+}
+
+export async function createFeedback(authorName: string, content: string): Promise<string> {
+  const [row] = await sql`
+    INSERT INTO feedback (author_name, content)
+    VALUES (${authorName}, ${content})
+    RETURNING id
+  `
+  return row.id
+}
+
+export async function getFeedbackList(): Promise<FeedbackItem[]> {
+  try {
+    const rows = await sql`
+      SELECT id, author_name, content, is_read, created_at
+      FROM feedback
+      ORDER BY created_at DESC
+    `
+    return rows.map(r => ({
+      id: r.id,
+      authorName: r.author_name,
+      content: r.content,
+      isRead: r.is_read,
+      createdAt: r.created_at,
+    }))
+  } catch { return [] }
+}
+
+export async function getUnreadFeedbackCount(): Promise<number> {
+  try {
+    const [{ cnt }] = await sql`SELECT COUNT(*)::int as cnt FROM feedback WHERE is_read = FALSE`
+    return Number(cnt)
+  } catch { return 0 }
+}
+
+export async function markFeedbackRead(id: string): Promise<void> {
+  await sql`UPDATE feedback SET is_read = TRUE WHERE id = ${id}`
+}
+
+export async function markAllFeedbackRead(): Promise<void> {
+  await sql`UPDATE feedback SET is_read = TRUE WHERE is_read = FALSE`
 }

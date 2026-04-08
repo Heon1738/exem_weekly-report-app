@@ -1,11 +1,17 @@
 'use client'
 
 import { useRouter, usePathname } from 'next/navigation'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 interface NavbarProps {
   userName: string
   role: 'leader' | 'member' | 'admin' | 'test'
+}
+
+interface LinkItem {
+  href: string
+  label: string
+  badge?: number
 }
 
 export default function Navbar({ userName, role }: NavbarProps) {
@@ -13,6 +19,25 @@ export default function Navbar({ userName, role }: NavbarProps) {
   const pathname = usePathname()
   const [loggingOut, setLoggingOut] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
+
+  // admin: 미확인 개선 요청 건수 폴링
+  useEffect(() => {
+    if (role !== 'admin') return
+    const fetchUnread = () =>
+      fetch('/api/feedback/unread')
+        .then(r => r.json())
+        .then(d => setUnreadCount(d.count ?? 0))
+        .catch(() => {})
+    fetchUnread()
+    const timer = setInterval(fetchUnread, 60_000) // 1분마다 갱신
+    return () => clearInterval(timer)
+  }, [role])
+
+  // 피드백 탭 방문 시 카운트 초기화 (GET /api/feedback 가 서버에서 전부 읽음 처리)
+  useEffect(() => {
+    if (pathname.startsWith('/feedback')) setUnreadCount(0)
+  }, [pathname])
 
   const handleLogout = async () => {
     setLoggingOut(true)
@@ -20,12 +45,13 @@ export default function Navbar({ userName, role }: NavbarProps) {
     window.location.href = '/login'
   }
 
-  const links = role === 'admin'
+  const links: LinkItem[] = role === 'admin'
     ? [
         { href: '/daily', label: '일일보고' },
         { href: '/weekly', label: '주간보고' },
         { href: '/reports', label: '보고 관리' },
         { href: '/settings', label: '환경설정' },
+        { href: '/feedback', label: '개선 요청', badge: unreadCount },
         { href: '/patchnotes', label: '패치노트' },
       ]
     : role === 'test'
@@ -34,6 +60,7 @@ export default function Navbar({ userName, role }: NavbarProps) {
         { href: '/weekly', label: '주간보고' },
         { href: '/reports', label: '보고 관리' },
         { href: '/settings', label: '환경설정' },
+        { href: '/feedback', label: '개선 요청' },
       ]
     : role === 'leader'
     ? [
@@ -44,6 +71,7 @@ export default function Navbar({ userName, role }: NavbarProps) {
         { href: '/daily', label: '일일보고' },
         { href: '/weekly', label: '주간보고' },
         { href: '/settings', label: '환경설정' },
+        { href: '/feedback', label: '개선 요청' },
       ]
 
   return (
@@ -72,13 +100,18 @@ export default function Navbar({ userName, role }: NavbarProps) {
                 <a
                   key={link.href}
                   href={link.href}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-150 ${
+                  className={`relative px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-150 ${
                     active
                       ? 'bg-notion-blue text-white shadow-sm'
                       : 'text-notion-gray hover:text-notion-text hover:bg-notion-gray-bg'
                   }`}
                 >
                   {link.label}
+                  {link.badge != null && link.badge > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">
+                      {link.badge > 99 ? '99+' : link.badge}
+                    </span>
+                  )}
                 </a>
               )
             })}
@@ -109,13 +142,17 @@ export default function Navbar({ userName, role }: NavbarProps) {
             {/* 모바일 햄버거 버튼 */}
             <button
               onClick={() => setMenuOpen(v => !v)}
-              className="sm:hidden p-1.5 rounded-lg text-notion-gray hover:bg-notion-gray-bg transition-colors"
+              className="sm:hidden p-1.5 rounded-lg text-notion-gray hover:bg-notion-gray-bg transition-colors relative"
               aria-label="메뉴"
             >
               {menuOpen
                 ? <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                 : <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
               }
+              {/* 모바일 햄버거에도 미확인 뱃지 */}
+              {unreadCount > 0 && !menuOpen && (
+                <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full" />
+              )}
             </button>
           </div>
         </div>
@@ -138,13 +175,18 @@ export default function Navbar({ userName, role }: NavbarProps) {
                 key={link.href}
                 href={link.href}
                 onClick={() => setMenuOpen(false)}
-                className={`block px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                className={`flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                   active
                     ? 'bg-notion-blue text-white'
                     : 'text-notion-text hover:bg-notion-gray-bg'
                 }`}
               >
-                {link.label}
+                <span>{link.label}</span>
+                {link.badge != null && link.badge > 0 && (
+                  <span className="min-w-[20px] h-5 px-1.5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                    {link.badge > 99 ? '99+' : link.badge}
+                  </span>
+                )}
               </a>
             )
           })}

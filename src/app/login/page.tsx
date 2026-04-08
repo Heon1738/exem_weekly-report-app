@@ -290,7 +290,7 @@ export default function LoginPage() {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <p className="text-sm font-semibold text-notion-text">패치노트</p>
-              <span className="text-xs bg-blue-50 text-blue-600 border border-blue-100 px-1.5 py-0.5 rounded-full font-medium">🆕 NEW</span>
+              <span className="text-xs bg-blue-50 text-blue-600 border border-blue-100 px-1.5 py-0.5 rounded-full font-medium">NEW</span>
             </div>
             <span className="text-xs font-medium text-notion-blue">{LATEST_PATCH.date}</span>
           </div>
